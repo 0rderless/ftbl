@@ -650,3 +650,15 @@ button.pp { background: none; border: 0; padding: 0; color: inherit; cursor: poi
 .md-panel { max-height: calc(100vh - var(--safe-top) - var(--safe-bot) - 32px); max-height: calc(100dvh - var(--safe-top) - var(--safe-bot) - 32px); }
 .md-list { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 .md-panel > .btn { flex: none; }
+/* win game */
+.sim-bar .win-btn { color: var(--gold); border-color: rgba(250, 204, 21, .45); background: rgba(250, 204, 21, .08); }
+.sim-bar .btn:last-child:not(.primary) { padding: 0 12px; }
+.wg-input { margin: 4px 0 0 !important; }
+.wg-head { display: flex; align-items: center; gap: 12px; }
+.wg-head .sheet-text { margin: 4px 0 0; }
+.wg-options { display: grid; gap: 8px; margin: 12px 0 14px; }
+.sheet-actions.one { grid-template-columns: 1fr; }
+.win-active { display: flex; gap: 10px; align-items: flex-start; border-color: rgba(250, 204, 21, .4); background: linear-gradient(120deg, rgba(250, 204, 21, .1), var(--card)); font-size: 13px; }
+.win-active > svg { color: var(--gold); width: 20px; height: 20px; flex: none; }
+.win-active span { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 2px 0; }
+.link-btn { background: none; border: 0; color: var(--accent2); font-weight: 700; padding: 0 0 0 4px; cursor: pointer; font-size: 13px; }

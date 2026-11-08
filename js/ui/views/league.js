@@ -5,6 +5,8 @@ import { currentRound, totalRounds, clubForm, playerStats, topList, clubStreaks,
 import { leagueRecords } from '../../league/records.js';
 import { simMatchday, simFixture, simSeason, nextSeason } from '../simActions.js';
 import { renderCup } from './cup.js';
+import { winGameFlow } from '../winGame.js';
+import { setForcedWins } from '../../league/cup.js';
 
 const ui = { round: {}, tableMode: 'all', statMode: 'g', teamMode: 'attack' };
 
@@ -250,6 +252,11 @@ function recordsTab(app, l) {
 }
 
 export const actions = {
+  winGame(app, el) { winGameFlow(app, el.dataset.id); },
+  stopWin(app, el) {
+    const id = app.route.params[0];
+    app.act((w) => setForcedWins(w.leagues[id], el.dataset.id, 0), 'Back to normal');
+  },
   round(app, el) { const l = app.world.leagues[app.route.params[0]]; ui.round[l.id] = Number(el.dataset.v); app.render(); },
   simOne(app, el) {
     const id = app.route.params[0];

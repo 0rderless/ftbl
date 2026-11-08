@@ -315,4 +315,51 @@ export function cupClubStatus(cup, clubId) {
   return `Group ${g.name} · ${pos}${['th', 'st', 'nd', 'rd'][pos] || 'th'}`;
 }
 
+// ---------- "Win game": guaranteed wins chosen by the user ----------
+// season.forceWins = { [clubId]: n }  (n > 0: win the next n matches, -1: win every match)
+export function setForcedWins(cup, clubId, n) {
+  const s = cup.season;
+  s.forceWins = s.forceWins || {};
+  if (!n) delete s.forceWins[clubId]; else s.forceWins[clubId] = n;
+}
+export function forcedWins(league) {
+  return (league.season && league.season.forceWins) || {};
+}
+/** For a tie-deciding match: would this result give clubId the tie without extra time? */
+export function wouldWinTie(cup, fixture, result, clubId) {
+  if (fixture.stage === 'groups') return true;
+  const tie = cup.season.ties.find((t) => t.fixtures.includes(fixture.id));
+  if (!tie || tie.fixtures[tie.fixtures.length - 1] !== fixture.id) return true;
+  let mine = 0, theirs = 0;
+  for (const fid of tie.fixtures) {
+    const f = fid === fixture.id ? { ...fixture, result } : cup.season.fixtures.find((x) => x.id === fid);
+    if (!f || !f.result) continue;
+    const homeIsMe = f.home === clubId;
+    mine += homeIsMe ? f.result.hg : f.result.ag;
+    theirs += homeIsMe ? f.result.ag : f.result.hg;
+  }
+  return mine > theirs;
+}
+
+/** Search clubs by partial name: "man ci" -> Manchester City, "zor" -> Zorp FC, "psg" -> PSG. */
+export function searchClubs(clubs, query, limit = 8) {
+  const norm = (x) => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const q = norm(query).trim();
+  if (!q) return clubs.slice(0, limit);
+  const tokens = q.split(/\s+/);
+  const scored = [];
+  for (const c of clubs) {
+    const name = norm(c.name), words = name.split(/[\s-]+/), short = norm(c.short);
+    let score = 0;
+    if (name.startsWith(q)) score = 5;
+    else if (short === q) score = 5;
+    else if (short.startsWith(q)) score = 4;
+    else if (tokens.every((t) => words.some((w) => w.startsWith(t)))) score = 3;
+    else if (name.includes(q)) score = 2;
+    else if (tokens.every((t) => name.includes(t))) score = 1;
+    if (score) scored.push({ c, score });
+  }
+  return scored.sort((a, b) => b.score - a.score || b.c.ratings.overall - a.c.ratings.overall).slice(0, limit).map((x) => x.c);
+}
+
 export { tieGoals };

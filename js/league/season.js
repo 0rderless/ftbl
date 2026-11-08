@@ -6,7 +6,7 @@ import { STYLES } from '../engine/tactics.js';
 import { generateFixtures, roundsCount } from './fixtures.js';
 import { computeTable } from './table.js';
 import { seasonLabel } from '../data/model.js';
-import { isCup, CUP_ROUNDS, resolveKnockout, advanceCup, startNextCupSeason } from './cup.js';
+import { isCup, CUP_ROUNDS, resolveKnockout, advanceCup, startNextCupSeason, wouldWinTie } from './cup.js';
 
 export function playersByClub(world) {
   const map = {};
@@ -89,6 +89,32 @@ export function simulateFixture(world, league, fixture, params, squads) {
   return simulateMatch(matchInput(world, league, fixture, params, sq));
 }
 
+/**
+ * Simulate a fixture whose result must be a win for clubId ("Win game").
+ * The match is simulated normally and only a winning outcome is kept, so the scoreline,
+ * scorers and stats come from the engine. Very lopsided cases get a temporary rating boost.
+ */
+export function forcedWinResult(world, league, fixture, params, sq, clubId) {
+  const input = matchInput(world, league, fixture, params, sq);
+  const side = fixture.home === clubId ? 'home' : 'away';
+  const ok = (r) => (side === 'home' ? r.hg > r.ag : r.ag > r.hg) && (!isCup(league) || wouldWinTie(league, fixture, r, clubId));
+  for (let i = 0; i < 300; i++) {
+    const r = simulateMatch({ ...input, seed: `${input.seed}|win${i}` });
+    if (ok(r)) return r;
+  }
+  for (const boost of [8, 16, 25, 40, 60]) {
+    const t = input[side];
+    const club = { ...t.club, ratings: Object.fromEntries(Object.entries(t.club.ratings).map(([k, v]) => [k, Math.min(99, v + boost)])) };
+    const players = t.players.map((p) => ({ ...p, overall: Math.min(99, p.overall + boost) }));
+    const boosted = { ...input, [side]: { club, players } };
+    for (let i = 0; i < 100; i++) {
+      const r = simulateMatch({ ...boosted, seed: `${input.seed}|win${boost}-${i}` });
+      if (ok(r)) return r;
+    }
+  }
+  return simulateMatch(input);
+}
+
 /** The engine input for a fixture (also reused for extra time and penalties). */
 export function matchInput(world, league, fixture, params, sq) {
   const season = league.season;
@@ -152,7 +178,13 @@ export function playFixture(world, league, fixtureId, params, squads) {
   const cr = currentRound(league);
   if (f.round !== cr) throw new Error(`Only matchday ${cr} fixtures can be played now`);
   const sq = squads || playersByClub(world);
-  const result = simulateFixture(world, league, f, params, sq);
+  const fw = season.forceWins || {};
+  const forced = [f.home, f.away].filter((id) => fw[id]);
+  const result = forced.length === 1 ? forcedWinResult(world, league, f, params, sq, forced[0]) : simulateFixture(world, league, f, params, sq);
+  if (forced.length === 1) {
+    result.forced = forced[0];
+    if (fw[forced[0]] > 0 && --fw[forced[0]] === 0) delete fw[forced[0]];
+  }
   if (isCup(league)) resolveKnockout(league, f, result, matchInput(world, league, f, params, sq));
   f.result = result;
   f.playedAt = Date.now();

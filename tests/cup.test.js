@@ -253,3 +253,33 @@ test('2026/27 fresh start: both competitions restart with no history; clubs, pla
   assert.equal(cup.season.label, '2027/28');
   assert.deepEqual(cup.season.qualifiers, k.history[0].table.slice(0, 3).map((r) => r.clubId));
 });
+
+test('Win game: chosen team wins (and wins knockout ties), counts down, then plays normally', async () => {
+  const { setForcedWins, forcedWins, searchClubs } = await import('../js/league/cup.js');
+  const { w, k } = worldWithKronliga();
+  const { cup } = createContinentalCup(w, { qualifiers: [{ leagueId: k.id, spots: 3 }] });
+  const weakest = cup.season.qualifiers.slice().sort((a, b) => w.clubs[a].ratings.overall - w.clubs[b].ratings.overall)[0];
+  // search by partial names
+  const clubs = cup.season.clubIds.map((id) => w.clubs[id]);
+  assert.equal(searchClubs(clubs, 'man ci')[0].name, 'Manchester City');
+  assert.equal(searchClubs(clubs, 'psg')[0].name, 'Paris Saint-Germain');
+  assert.equal(searchClubs(clubs, 'real m')[0].name, 'Real Madrid');
+  assert.equal(searchClubs(clubs, w.clubs[weakest].name.toLowerCase())[0].id, weakest);
+  assert.equal(searchClubs(clubs, 'bay')[0].name, 'Bayern Munich');
+  assert.ok(searchClubs(clubs, 'xyzq').length === 0);
+  // win the next 2, then normal
+  setForcedWins(cup, weakest, 2);
+  const won = () => cup.season.fixtures.filter((f) => f.result && (f.home === weakest || f.away === weakest))
+    .map((f) => (f.home === weakest ? f.result.hg > f.result.ag : f.result.ag > f.result.hg));
+  playRound(w, cup, P); playRound(w, cup, P);
+  assert.deepEqual(won(), [true, true]);
+  assert.equal(forcedWins(cup)[weakest], undefined, 'used up');
+  // win every match: goes through the whole competition and lifts the trophy
+  setForcedWins(cup, weakest, -1);
+  playSeason(w, cup, P);
+  assert.ok(won().every(Boolean), 'won every match');
+  assert.equal(cup.history[0].championId, weakest);
+  const results = cup.season.fixtures.filter((f) => f.result && (f.home === weakest || f.away === weakest)).map((f) => f.result);
+  assert.ok(new Set(results.map((r) => `${r.hg}-${r.ag}`)).size > 1, 'varied scorelines chosen by the game');
+  for (const r of results) assert.equal(r.events.filter((e) => e.type === 'goal').length, r.hg + r.ag, 'events match the score');
+});

@@ -2,7 +2,8 @@
 import { esc } from '../dom.js';
 import { ICONS, header, tabs, leagueLogo, clubBadge, emptyState } from '../components.js';
 import { currentRound, totalRounds, seasonStarted } from '../../league/season.js';
-import { STAGES, roundLabel, stageOfRound, groupTables, pendingQualifiers } from '../../league/cup.js';
+import { STAGES, roundLabel, stageOfRound, groupTables, pendingQualifiers, forcedWins } from '../../league/cup.js';
+import { winLabel } from '../winGame.js';
 
 export const CUP_TABS = [['fixtures', 'Fixtures'], ['groups', 'Groups'], ['bracket', 'Knockouts'], ['stats', 'Stats'], ['history', 'History']];
 
@@ -90,12 +91,20 @@ function fixturesTab(app, l, ui) {
       <button class="icon-btn" data-act="round" data-v="${r + 1}" ${r >= maxDrawn ? 'disabled' : ''} aria-label="Next round">${ICONS.chev}</button>
     </div>
     <div class="card fx-list cup">${list.map((f) => fixtureRow(app, l, f, isCurrent)).join('')}</div>
-    ${!s.finished ? `<div class="sim-bar">
-      <button class="btn primary" data-act="play" data-id="${l.id}">${ICONS.play} Play ${esc(cr <= 6 ? `matchday ${cr}` : roundLabel(cr).replace(' · ', ' '))}</button>
-      <button class="btn" data-act="season" data-id="${l.id}">${ICONS.ff} Sim all</button>
+    ${!s.finished ? `${activeWins(app, l)}<div class="sim-bar">
+      <button class="btn primary" data-act="play" data-id="${l.id}">${ICONS.play} Play ${esc(cr <= 6 ? `MD ${cr}` : stageOfRound(cr).short + (stageOfRound(cr).key === 'final' ? '' : stageOfRound(cr).rounds[0] === cr ? ' leg 1' : ' leg 2'))}</button>
+      <button class="btn win-btn" data-act="winGame" data-id="${l.id}">${ICONS.trophy} Win game</button>
+      <button class="btn" data-act="season" data-id="${l.id}" aria-label="Simulate all">${ICONS.ff}</button>
     </div>` : ''}
     ${s.qualifiers && s.qualifiers.length ? `<p class="hint">${ICONS.trophy} Qualified from the league: ${s.qualifiers.map((id) => esc(app.world.clubs[id] ? app.world.clubs[id].name : '?')).join(', ')}</p>` : ''}
     <p class="hint">${seasonStarted(l) ? '' : 'The group draw keeps clubs from the same country or league apart. '}Season seed <code>${esc(s.seed)}</code></p>`;
+}
+
+function activeWins(app, l) {
+  const fw = forcedWins(l);
+  const ids = Object.keys(fw);
+  if (!ids.length) return '';
+  return `<div class="card win-active">${ICONS.trophy}<div>${ids.map((id) => { const c = app.world.clubs[id]; return `<span>${clubBadge(c, 18)} <b>${esc(c ? c.name : '?')}</b> wins ${esc(winLabel(fw[id]))} <button class="link-btn" data-act="stopWin" data-id="${id}">Stop</button></span>`; }).join('')}</div></div>`;
 }
 
 function groupsTab(app, l) {
