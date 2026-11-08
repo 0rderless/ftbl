@@ -77,27 +77,46 @@ export class Store {
     clearTimeout(this.timer);
     this.timer = setTimeout(() => { this.flush(); }, this.debounceMs);
   }
-  async flush() {
+  async flush({ keepSavedAt = false, silent = false } = {}) {
     clearTimeout(this.timer);
     if (!this.dirty) return this.saving;
     this.dirty = false;
-    this.world.savedAt = Date.now();
+    if (!keepSavedAt || !this.world.savedAt) this.world.savedAt = Date.now();
     const json = JSON.stringify(this.world);
     const prev = this.saving || Promise.resolve();
-    this.saving = prev.then(() => this.adapter.save(json)).then(() => { this.lastError = null; })
-      .catch((e) => { this.lastError = e; this.dirty = true; this.emit({ saveError: e }); });
+    this.saving = prev.then(() => this.adapter.save(json)).then(() => {
+      this.lastError = null;
+      if (!silent && this.onSaved) this.onSaved();
+    }).catch((e) => { this.lastError = e; this.dirty = true; this.emit({ saveError: e }); });
     return this.saving;
   }
-  async replace(world) {
+  /**
+   * Replace the whole world (import, restore, cloud download).
+   * keepSavedAt: keep the incoming save time; silentSync: don't upload the change to the cloud.
+   */
+  async replace(world, { keepSavedAt = false, silentSync = false } = {}) {
     this.world = normalizeWorld(world);
     this.dirty = true;
-    await this.flush();
+    await this.flush({ keepSavedAt, silent: silentSync });
     this.emit({ replaced: true });
   }
   async reset() {
+    await this.backupLocal('before-reset');
     this.world = emptyWorld();
+    this.allowEmptyPush = true;
     this.dirty = true;
     await this.flush();
     this.emit({ replaced: true });
+  }
+  /** Keep a copy of the current world on this device (restorable from Data & app). */
+  async backupLocal(reason = 'manual') {
+    if (!this.adapter.saveBackup) return null;
+    const w = this.world;
+    if (!Object.keys(w.clubs).length && !Object.keys(w.leagues).length && !Object.keys(w.players).length) return null;
+    try {
+      return await this.adapter.saveBackup(JSON.stringify(w), {
+        reason, savedAt: w.savedAt || null, clubs: Object.keys(w.clubs).length, leagues: Object.keys(w.leagues).length,
+      });
+    } catch (e) { this.lastError = e; return null; }
   }
 }

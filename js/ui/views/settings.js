@@ -1,5 +1,5 @@
 import { esc, download, fmtNum } from '../dom.js';
-import { ICONS, header, tabs, slider, segmented } from '../components.js';
+import { ICONS, header, tabs, slider, segmented, syncBadge } from '../components.js';
 import { SETTING_DEFS, PRESETS, PRESET_ORDER, applyPreset, setSimValue, resolveParams } from '../../engine/params.js';
 import { simulateMatch } from '../../engine/match.js';
 import { newClub } from '../../data/model.js';
@@ -82,7 +82,23 @@ function dataTab(app) {
   const size = new Blob([JSON.stringify(w)]).size;
   const saved = w.savedAt ? new Date(w.savedAt).toLocaleString() : 'Not yet';
   const standalone = window.navigator.standalone || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+  const sync = app.sync;
+  const cloudOn = sync && sync.status !== 'off';
   return `<div class="card">
+      <h3 class="card-title">Cloud save</h3>
+      <div class="kv"><span>Status</span>${syncBadge(sync)}</div>
+      <div class="kv"><span>Last synced</span><b>${sync && sync.lastSyncAt ? esc(new Date(sync.lastSyncAt).toLocaleString()) : '—'}</b></div>
+      ${sync && sync.error ? `<p class="hint">${ICONS.info} ${esc(sync.error.message)}</p>` : ''}
+      <p class="hint">${cloudOn ? 'Every change is saved on this device straight away and uploaded to your Firebase database a couple of seconds later. Opening ftbl on another device loads the newest copy.' : 'Cloud sync is unavailable right now (offline or blocked). Everything is still saved on this device and will upload when the connection is back.'}</p>
+      <button class="btn" data-act="syncNow">${ICONS.refresh} Sync now</button>
+    </div>
+    <div class="card">
+      <h3 class="card-title">Backups</h3>
+      <p class="hint">Older copies are kept automatically whenever data is replaced (cloud download, import, restore or reset), so nothing is ever lost.</p>
+      <div data-backups><p class="muted">Loading backups…</p></div>
+      <button class="btn ghost sm" data-act="backupNow">${ICONS.copy} Back up now</button>
+    </div>
+    <div class="card">
       <h3 class="card-title">Storage</h3>
       <div class="kv"><span>Saved in</span><b>${esc(st.adapter.name)}</b></div>
       <div class="kv"><span>Last saved</span><b>${esc(saved)}</b></div>
@@ -103,13 +119,61 @@ function dataTab(app) {
     </div>
     <div class="card danger-zone">
       <h3 class="card-title">Reset</h3>
-      <p class="hint">Deletes every club, player, league and setting on this device.</p>
+      <p class="hint">Deletes every club, player, league and setting (a backup is kept first).</p>
       <button class="btn danger block" data-act="reset">${ICONS.trash} Delete all data</button>
     </div>
     <p class="hint center">ftbl v1.0</p>`;
 }
 
+function backupRow(b, where) {
+  const when = new Date(Number(b.at || b.key)).toLocaleString();
+  const reasons = { 'before-cloud-download': 'Before cloud download', 'before-reset': 'Before reset', 'before-import': 'Before import', 'before-restore': 'Before restore', 'replaced-by-newer-device': 'Replaced by newer device', replaced: 'Replaced by another device', manual: 'Manual backup' };
+  return `<div class="backup-row"><div><b>${esc(when)}</b><small>${esc(reasons[b.reason] || b.reason || '')}${b.clubs != null ? ` · ${b.clubs} clubs · ${b.leagues} leagues` : ''} · ${Math.round((b.size || 0) / 1024)} KB · ${where}</small></div>
+    <button class="btn sm" data-act="restore" data-where="${where}" data-key="${esc(b.key)}">Restore</button></div>`;
+}
+
+export async function mount(app, el, tab) {
+  if (tab !== 'data') return;
+  const box = el.querySelector('[data-backups]');
+  if (!box) return;
+  const rows = [];
+  try { if (app.store.adapter.listBackups) for (const b of await app.store.adapter.listBackups()) rows.push(backupRow(b, 'device')); } catch { /* ignore */ }
+  try {
+    const cloud = app.sync && app.sync.cloud;
+    if (cloud) for (const b of await Promise.race([cloud.listBackups(), new Promise((r) => setTimeout(() => r([]), 8000))])) rows.push(backupRow(b, 'cloud'));
+  } catch { /* offline */ }
+  if (box.isConnected) box.innerHTML = rows.join('') || '<p class="muted">No backups yet.</p>';
+}
+
+async function restoreWorld(app, world, label) {
+  await app.store.backupLocal('before-restore');
+  await app.store.replace(world);
+  app.toast(`Restored ${label}`, 'ok');
+  app.nav('#/');
+}
+
 export const actions = {
+  async syncNow(app) {
+    if (!app.sync || !app.sync.cloud) { app.toast('Cloud is not available right now', 'error'); return; }
+    await app.store.flush();
+    const r = await app.sync.refresh();
+    if (r === 'same' && app.sync.status === 'synced') { try { await app.sync.push(); } catch { /* status shows it */ } }
+    app.toast(app.sync.status === 'synced' ? 'Synced' : 'Could not reach the cloud — saved on this device', app.sync.status === 'synced' ? 'ok' : 'error');
+    app.render();
+  },
+  async backupNow(app) {
+    const k = await app.store.backupLocal('manual');
+    app.toast(k ? 'Backup saved on this device' : 'Nothing to back up yet', k ? 'ok' : 'info');
+    app.render();
+  },
+  async restore(app, el) {
+    const { where, key } = el.dataset;
+    if (!(await app.confirm('Your current data will be replaced by this backup. A copy of the current data is kept as a backup first.', { ok: 'Restore backup', title: 'Restore backup' }))) return;
+    try {
+      const world = where === 'cloud' ? await app.sync.cloud.readBackup(key) : await app.store.adapter.loadBackup(key);
+      await restoreWorld(app, world, 'backup');
+    } catch (e) { app.toast('Restore failed: ' + e.message, 'error'); }
+  },
   preset(app, el) {
     app.act((w) => { w.settings.sim = applyPreset(w.settings.sim, el.dataset.value); });
     ui.lab = null;
@@ -147,7 +211,7 @@ export const actions = {
     app.toast(`Added ${added} demo clubs`, 'ok');
   },
   async reset(app) {
-    if (!(await app.confirm('This permanently deletes everything stored by ftbl on this device. Export a backup first if you might want it back.', { ok: 'Delete everything', danger: true }))) return;
+    if (!(await app.confirm('This deletes every club, player and league on this device and in the cloud. A backup copy is kept and can be restored from Backups.', { ok: 'Delete everything', danger: true }))) return;
     await app.store.reset();
     app.toast('All data deleted', 'ok');
     app.nav('#/');
@@ -179,6 +243,7 @@ async function importFile(app, el) {
     const world = data && data.world ? data.world : data;
     if (!world || typeof world !== 'object' || !world.clubs || !world.leagues) throw new Error('This file is not an ftbl backup');
     if (!(await app.confirm(`Replace everything on this device with the backup (${Object.keys(world.clubs).length} clubs, ${Object.keys(world.leagues).length} leagues)?`, { ok: 'Import', danger: true }))) return;
+    await app.store.backupLocal('before-import');
     await app.store.replace(world);
     app.toast('Backup imported', 'ok');
     app.nav('#/');

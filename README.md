@@ -10,13 +10,21 @@ You can create fictional clubs with their own badges and kits, add players, set 
 2. Tap **Share**, then **Add to Home Screen**.
 3. Launch **ftbl** from the home screen. It opens full screen and also works offline.
 
-All data is saved on the device in IndexedDB and is kept when the app closes. To keep a copy or move to another device, use **Sim → Data & app → Export backup**.
+Every change is saved on the device first (IndexedDB), then uploaded to the Firebase Realtime Database under `ftbl/` a couple of seconds later. If the app is opened on another device, it loads the newest copy. The app also works offline and uploads once it's back online. There is no login.
+
+To protect your data:
+- A device with no data never overwrites the cloud. It downloads the cloud copy instead.
+- When copies differ, the most recently saved one wins, and the other is kept as a backup.
+- Import, restore and reset each keep a backup first.
+
+Backups are listed under **Sim → Data & app → Backups** and can be restored from there. **Export backup** also downloads a JSON file.
 
 ## Features
 
 - **Match engine.** Expected goals for each side are built from attack, midfield, defence, goalkeeper, opponent quality, home advantage, recent form, player availability, fatigue and tactical match-ups. Each match then adds random performance swings and overdispersion. The scoreline is drawn from a Poisson score matrix with a draw adjustment, and goals, assists, cards, injuries, substitutions and statistics are generated to fit that score.
 - **Simulation settings.** There are 14 settings and 4 presets: Realistic, Balanced, Unpredictable and Custom. A built-in tester runs 2,400 matches with your current settings.
 - **Club creator.** Name, abbreviation, founding year and colours. The badge designer has 28 presets, 14 shapes, 17 patterns and 31 emblems. Base, pattern, emblem and trim colours, text, trim style and stars above the badge can all be changed. Each club has home, away and third kits in 13 styles, plus a stadium, ratings and tactics.
+- **Line-up editor.** On a club's Squad tab, switch to **My line-up** and tap a position to choose the player. You can also pick formation and up to 9 substitutes. Matches use your XI. If a chosen player is injured or suspended, one of your substitutes covers that match.
 - **Player creator.** Nationality, age, position, attributes, overall rating, shirt number, preferred foot and club. Full squads can be generated automatically.
 - **League creator.** Choose the clubs and a season length of 1 to 4 meetings per pair. Fixtures are generated automatically. You can set points per result, the tiebreaker, rest days between matchdays, and the champion, continental, promotion and relegation places. Leagues can be linked so clubs move up and down between divisions. Seeds can be random or fixed.
 - **Simulation.** Play one match, a whole matchday or the rest of the season. Each match report has a timeline, statistics, line-ups on a pitch with player ratings, and pre-match win probabilities.
@@ -29,7 +37,7 @@ index.html, manifest.webmanifest, sw.js   app shell, PWA manifest, offline cache
 js/engine/    match engine (no UI code): params.js, strength.js, tactics.js, poisson.js, match.js
 js/league/    fixtures, tables, seasons, promotion/relegation, records
 js/data/      data model, name pools, squad generator, demo world
-js/core/      seeded RNG, persistent store, storage adapters, validated world actions
+js/core/      seeded RNG, persistent store, storage adapters, cloud sync (Firebase), validated world actions
 js/ui/        app shell, router, components, badge and kit renderers, views/
 tests/        unit tests (node:test) and an end-to-end browser test
 ```

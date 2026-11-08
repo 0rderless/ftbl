@@ -117,6 +117,7 @@ export const actions = {
     const id = app.route.params[0];
     if (!draft.name.trim()) { app.toast('Give the club a name', 'error'); return; }
     const data = { ...draft, short: draft.short || makeShort(draft.name) };
+    if (data.lineup) data.lineup = { ...data.lineup, formation: data.tactics.formation };
     if (id) {
       if (app.act((w) => updateClub(w, id, data), 'Club saved')) { draft = null; draftKey = null; app.nav(`#/club/${id}`); }
     } else {

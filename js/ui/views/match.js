@@ -122,6 +122,10 @@ export function pitchHTML(app, lineup, kit, opts = {}) {
       const p = s.pid && w.players[s.pid];
       const rating = opts.ratings && opts.ratings[s.pid] != null ? `<em>${Number(opts.ratings[s.pid]).toFixed(1)}</em>` : '';
       const extra = opts.marks ? opts.marks(s.pid) : '';
+      if (opts.edit) {
+        const warn = opts.warn ? opts.warn(s.pid) : '';
+        return `<button type="button" class="pp edit ${p ? '' : 'empty'} ${warn ? 'warn' : ''}" data-act="slot" data-i="${i}" style="left:${pos[i].x}%;top:${pos[i].y}%"><span class="shirt" style="${p ? `background:${kit.c1};color:${fg};border-color:${kit.c3}` : ''}">${p ? p.number : '+'}</span>${warn}<b>${esc(p ? p.name.split(' ').slice(-1)[0] : 'Choose')}</b><small>${s.slot}${p && p.position !== s.slot ? ` · ${p.position}` : ''}</small></button>`;
+      }
       return `<a class="pp" href="${p ? `#/player/${p.id}` : '#'}" style="left:${pos[i].x}%;top:${pos[i].y}%"><span class="shirt" style="background:${kit.c1};color:${fg};border-color:${kit.c3}">${p ? p.number : '?'}</span>${rating}${extra}<b>${esc(p ? p.name.split(' ').slice(-1)[0] : 'Youth')}</b><small>${s.slot}</small></a>`;
     }).join('')}</div>`;
 }
@@ -187,8 +191,8 @@ function preview(app, l, f) {
       <div class="vs-row"><span>${H.formation} · ${esc(STYLES[H.style].label)}</span><small>Tactics</small><span>${A.formation} · ${esc(STYLES[A.style].label)}</span></div>
     </div>
     <div class="card"><h3 class="card-title">Unavailable</h3><p>${esc(h.short)}: ${unavailable(h)}</p><p>${esc(a.short)}: ${unavailable(a)}</p></div>
-    ${H.lineup ? `<h3 class="section-title">Predicted ${esc(h.short)} XI</h3>${pitchHTML(app, H.lineup, h.kits.home)}` : ''}
-    ${A.lineup ? `<h3 class="section-title">Predicted ${esc(a.short)} XI</h3>${pitchHTML(app, A.lineup, clashes(h.kits.home, a.kits.home) ? a.kits.away : a.kits.home)}` : ''}
+    ${H.lineup ? `<h3 class="section-title row between"><span>${h.lineup && h.lineup.manual ? 'Your' : 'Predicted'} ${esc(h.short)} XI</span><a class="link" href="#/club/${h.id}/squad">Edit line-up ›</a></h3>${pitchHTML(app, H.lineup, h.kits.home)}` : ''}
+    ${A.lineup ? `<h3 class="section-title row between"><span>${a.lineup && a.lineup.manual ? 'Your' : 'Predicted'} ${esc(a.short)} XI</span><a class="link" href="#/club/${a.id}/squad">Edit line-up ›</a></h3>${pitchHTML(app, A.lineup, clashes(h.kits.home, a.kits.home) ? a.kits.away : a.kits.home)}` : ''}
     ${canPlay ? `<div class="sim-bar"><button class="btn primary block" data-act="sim">${ICONS.play} Simulate this match</button></div>` : `<p class="hint center">${ICONS.info} This match can be played once matchday ${f.round} is the current matchday.</p>`}`;
 }
 

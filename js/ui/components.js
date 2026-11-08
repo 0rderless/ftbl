@@ -109,3 +109,10 @@ export function emptyState(title, text = '', action = '') {
 export function flag(code) { return `<span class="flag">${nationFlag(code)}</span>`; }
 
 export function posTag(pos) { return `<span class="pos pos-${pos}">${pos}</span>`; }
+
+export function syncBadge(sync) {
+  if (!sync || sync.status === 'off') return '<span class="sync-badge off" data-sync-status>Device only</span>';
+  const label = { connecting: 'Connecting…', synced: 'Cloud saved', saving: 'Saving…', offline: 'Offline · saved on device', error: 'Cloud error · saved on device' }[sync.status] || sync.status;
+  return `<span class="sync-badge ${sync.status}" data-sync-status title="${esc(sync.error ? sync.error.message : '')}"><i></i>${label}</span>`;
+}
+

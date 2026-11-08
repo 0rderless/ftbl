@@ -1,10 +1,10 @@
-import { esc, fmtNum } from '../dom.js';
-import { ICONS, header, tabs, clubBadge, ratingChip, formPills, emptyState, flag, posTag, leagueLogo } from '../components.js';
+import { esc, fmtNum, sheet } from '../dom.js';
+import { ICONS, header, tabs, clubBadge, ratingChip, formPills, emptyState, flag, posTag, leagueLogo, segmented } from '../components.js';
 import { kitSVG } from '../kit.js';
 import { computeTable } from '../../league/table.js';
 import { clubForm, playerStats } from '../../league/season.js';
 import { selectLineup } from '../../engine/strength.js';
-import { FORMATION_KEYS, STYLES, STYLE_KEYS, POSITIONS } from '../../engine/tactics.js';
+import { FORMATION_KEYS, FORMATIONS, STYLES, STYLE_KEYS, POSITIONS, positionFit } from '../../engine/tactics.js';
 import { clubRecords } from '../../league/records.js';
 import { fillSquad, releaseSquad, squadOf, updateClub } from '../../core/actions.js';
 import { pitchHTML } from './match.js';
@@ -59,6 +59,63 @@ function overviewTab(app, c) {
     <div class="card"><h3 class="card-title">Trophy cabinet</h3>${titles ? `<p class="trophies">${'🏆'.repeat(Math.min(titles, 20))} <b>${titles}</b> league title${titles > 1 ? 's' : ''}</p>` : '<p class="muted">No trophies yet.</p>'}<a href="#/club/${c.id}/honours" class="link">All honours ›</a></div>`;
 }
 
+function statusOf(ps, pid) {
+  const s = ps[pid];
+  if (!s) return null;
+  if (s.inj > 0) return `Injured (${s.inj})`;
+  if (s.sus > 0) return 'Suspended';
+  return null;
+}
+
+function manualEditor(app, c, squad, ps, resolved) {
+  const w = app.world;
+  const m = c.lineup;
+  const slots = FORMATIONS[m.formation] ? FORMATIONS[m.formation].slots : FORMATIONS[c.tactics.formation].slots;
+  const display = { xi: slots.map((slot, i) => ({ slot, pid: m.xi[i] && w.players[m.xi[i]] && w.players[m.xi[i]].clubId === c.id ? m.xi[i] : null })) };
+  const warn = (pid) => (pid && statusOf(ps, pid) ? '<span class="marks"><i class="mk-r"></i></span>' : '');
+  const issues = display.xi.filter((s) => s.pid && statusOf(ps, s.pid)).map((s) => {
+    const p = w.players[s.pid];
+    const repl = resolved.xi[display.xi.indexOf(s)];
+    const rp = repl && repl.pid && w.players[repl.pid];
+    return `<li><b>${esc(p.name)}</b> — ${statusOf(ps, s.pid)}${rp ? `, <span class="in">${esc(rp.name)}</span> plays instead` : ''}</li>`;
+  });
+  const empty = display.xi.filter((s) => !s.pid).length;
+  const bench = Array.from({ length: 9 }, (_, i) => m.bench[i] || null);
+  return `<div class="field"><span>Formation</span><div class="chips wrap">${FORMATION_KEYS.map((f) => `<button type="button" class="chip ${m.formation === f ? 'on' : ''}" data-act="lineupFormation" data-value="${f}">${f}</button>`).join('')}</div></div>
+    ${pitchHTML(app, display, c.kits.home, { edit: true, warn })}
+    <p class="hint">${ICONS.info} Tap a position to pick a player. ${empty ? `${empty} empty position${empty > 1 ? 's' : ''} will be filled automatically.` : ''}</p>
+    ${issues.length ? `<div class="note"><div><b>Unavailable for the next match</b><ul class="issues">${issues.join('')}</ul></div></div>` : ''}
+    <div class="card flush"><div class="rank-head">Substitutes (${bench.filter(Boolean).length}/9)</div>
+      ${bench.map((pid, i) => { const p = pid && w.players[pid]; const st = p && statusOf(ps, pid); return `<button type="button" class="sub-row editable" data-act="benchSlot" data-i="${i}"><span class="num">${p ? p.number : i + 1}</span>${p ? posTag(p.position) : ''}<span>${p ? esc(p.name) : '<em class="muted">Empty — auto pick</em>'}</span>${st ? `<span class="tag red">${st}</span>` : ''}${p ? ratingChip(p.overall) : ICONS.plus}</button>`; }).join('')}
+    </div>
+    <div class="row gap wrap"><button class="btn sm" data-act="lineupCopyAuto">${ICONS.refresh} Reset to auto pick</button><button class="btn sm ghost" data-act="lineupClear">${ICONS.trash} Clear</button></div>`;
+}
+
+async function pickPlayer(app, c, slot, { allowEmpty = true, exclude = new Set(), title }) {
+  const w = app.world;
+  const l = activeLeague(w, c.id);
+  const ps = l ? l.season.ps : {};
+  const squad = squadOf(w, c.id).filter((p) => !exclude.has(p.id))
+    .map((p) => ({ p, v: slot ? Math.round(p.overall * positionFit(p.position, slot)) : p.overall }))
+    .sort((a, b) => b.v - a.v);
+  const rows = squad.map(({ p, v }) => {
+    const st = statusOf(ps, p.id);
+    const fit = ps[p.id] ? Math.round(ps[p.id].fit) : 100;
+    return `<button class="pick-row" data-sheet="${p.id}"><span class="num">${p.number}</span>${posTag(p.position)}<span class="pr-name"><b>${esc(p.name)}</b><small>${slot ? `${v} as ${slot} · ` : ''}fitness ${fit}%${st ? ` · <span class="danger-text">${st}</span>` : ''}</small></span>${ratingChip(p.overall)}</button>`;
+  }).join('');
+  const out = await sheet(`<h3 class="sheet-title">${esc(title)}</h3><div class="pick-sheet">${rows || '<p class="muted">No players available.</p>'}</div>
+    <div class="sheet-actions">${allowEmpty ? '<button class="btn ghost" data-sheet="__empty">Leave empty</button>' : ''}<button class="btn" data-sheet="__cancel">Cancel</button></div>`);
+  if (out == null || out === '__cancel') return undefined;
+  return out === '__empty' ? null : out;
+}
+
+function autoLineup(app, c) {
+  const w = app.world;
+  const l = activeLeague(w, c.id);
+  const lu = selectLineup(squadOf(w, c.id), c.tactics.formation, l ? l.season.ps : {}, app.params().fatigueWeight);
+  return { manual: true, formation: c.tactics.formation, xi: lu.xi.map((s) => s.pid), bench: lu.bench.slice() };
+}
+
 const ord = (n) => (n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th');
 
 function squadTab(app, c) {
@@ -71,14 +128,16 @@ function squadTab(app, c) {
     return emptyState('No players', 'Generate a full squad that matches the club\'s ratings, or create players one by one.',
       `<button class="btn primary" data-act="fill">${ICONS.dice} Generate squad</button> <a class="btn" href="#/players/new?club=${c.id}">Add player</a>`);
   }
-  const lineup = selectLineup(squad, c.tactics.formation, ps, app.params().fatigueWeight);
+  const manual = c.lineup && c.lineup.manual ? c.lineup : null;
+  const lineup = selectLineup(squad, c.tactics.formation, ps, app.params().fatigueWeight, 9, manual);
   const groups = [['Goalkeepers', ['GK']], ['Defenders', ['RB', 'CB', 'LB']], ['Midfielders', ['DM', 'CM', 'AM', 'RM', 'LM']], ['Forwards', ['RW', 'LW', 'ST']]];
   const avg = Math.round(squad.reduce((s, p) => s + p.overall, 0) / squad.length);
   const xiIds = new Set(lineup.xi.map((s) => s.pid));
   return `<div class="row between"><p class="hint">${squad.length} players · avg OVR ${avg} · ${c.tactics.formation}${l ? ` · condition from ${esc(l.name)}` : ''}</p></div>
     <h3 class="section-title">Starting XI</h3>
-    ${pitchHTML(app, lineup, c.kits.home)}
-    <p class="hint">Picked automatically from fitness, availability and position fit.</p>
+    ${segmented('lineupMode', [['auto', 'Auto pick'], ['manual', 'My line-up']], manual ? 'manual' : 'auto', 'lineupMode')}
+    ${manual ? manualEditor(app, c, squad, ps, lineup) : `${pitchHTML(app, lineup, c.kits.home)}
+    <p class="hint">Picked automatically from fitness, availability and position fit. Switch to <b>My line-up</b> to choose your own XI and substitutes.</p>`}
     <div class="row gap wrap">
       <a class="btn sm" href="#/players/new?club=${c.id}">${ICONS.plus} Add player</a>
       <button class="btn sm" data-act="fill" ${squad.length >= 25 ? 'disabled' : ''}>${ICONS.dice} Fill to 25</button>
@@ -145,6 +204,64 @@ function recordsTab(app, c) {
 }
 
 export const actions = {
+  lineupMode(app, el) {
+    const id = app.route.params[0];
+    const manual = el.dataset.value === 'manual';
+    app.act((w) => {
+      const c = w.clubs[id];
+      if (manual) c.lineup = c.lineup && c.lineup.xi ? { ...c.lineup, manual: true } : autoLineup(app, c);
+      else if (c.lineup) c.lineup.manual = false;
+    }, manual ? 'Your line-up will be used in matches' : 'Line-up picked automatically');
+  },
+  lineupFormation(app, el) {
+    const id = app.route.params[0];
+    app.act((w) => { const c = w.clubs[id]; c.tactics.formation = el.dataset.value; c.lineup.formation = el.dataset.value; });
+  },
+  lineupCopyAuto(app) {
+    const id = app.route.params[0];
+    app.act((w) => { w.clubs[id].lineup = autoLineup(app, w.clubs[id]); }, 'Line-up reset to the auto pick');
+  },
+  lineupClear(app) {
+    const id = app.route.params[0];
+    app.act((w) => { const c = w.clubs[id]; c.lineup = { manual: true, formation: c.tactics.formation, xi: Array(11).fill(null), bench: [] }; });
+  },
+  async slot(app, el) {
+    const id = app.route.params[0];
+    const c = app.world.clubs[id];
+    const i = Number(el.dataset.i);
+    const slot = FORMATIONS[c.lineup.formation].slots[i];
+    const pid = await pickPlayer(app, c, slot, { title: `Choose ${slot}` });
+    if (pid === undefined) return;
+    app.act((w) => {
+      const m = w.clubs[id].lineup;
+      const xi = Array.from({ length: 11 }, (_, k) => m.xi[k] || null);
+      const old = xi[i];
+      if (pid) {
+        const j = xi.indexOf(pid);
+        if (j >= 0) xi[j] = old; // swap positions
+        const b = m.bench.indexOf(pid);
+        if (b >= 0) { if (old) m.bench[b] = old; else m.bench.splice(b, 1); }
+      }
+      xi[i] = pid;
+      m.xi = xi;
+      m.bench = m.bench.filter((x) => x && !xi.includes(x));
+    });
+  },
+  async benchSlot(app, el) {
+    const id = app.route.params[0];
+    const c = app.world.clubs[id];
+    const i = Number(el.dataset.i);
+    const pid = await pickPlayer(app, c, null, { title: `Substitute ${i + 1}`, exclude: new Set(c.lineup.xi.filter(Boolean)) });
+    if (pid === undefined) return;
+    app.act((w) => {
+      const m = w.clubs[id].lineup;
+      const bench = Array.from({ length: 9 }, (_, k) => m.bench[k] || null);
+      const old = bench[i];
+      if (pid) { const j = bench.indexOf(pid); if (j >= 0) bench[j] = old; }
+      bench[i] = pid;
+      m.bench = bench.filter(Boolean);
+    });
+  },
   fill(app) {
     const id = app.route.params[0];
     const created = app.act((w) => fillSquad(w, id, 25));
@@ -162,6 +279,9 @@ export function onChange(app, el) {
   const id = app.route.params[0];
   const f = el.dataset.field;
   if (f === 'formation' || f === 'style') {
-    app.act((w) => updateClub(w, id, { tactics: { ...w.clubs[id].tactics, [f]: el.value } }), 'Tactics updated');
+    app.act((w) => {
+      updateClub(w, id, { tactics: { ...w.clubs[id].tactics, [f]: el.value } });
+      if (f === 'formation' && w.clubs[id].lineup) w.clubs[id].lineup.formation = el.value;
+    }, 'Tactics updated');
   }
 }

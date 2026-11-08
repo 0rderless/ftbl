@@ -2,7 +2,7 @@
 import { resolveParams } from '../engine/params.js';
 import { ActionError } from '../core/actions.js';
 import { toast, confirmDialog, esc } from './dom.js';
-import { ICONS } from './components.js';
+import { ICONS, syncBadge } from './components.js';
 
 import * as home from './views/home.js';
 import * as leagues from './views/leagues.js';
@@ -45,9 +45,10 @@ const TABS = [
   ['settings', '#/settings', 'Sim', ICONS.sliders],
 ];
 
-export function createApp(store, root) {
+export function createApp(store, root, sync = null) {
   const app = {
     store,
+    sync,
     get world() { return store.world; },
     params() { return resolveParams(store.world.settings.sim.values); },
     route: null,
@@ -130,5 +131,8 @@ export function createApp(store, root) {
   });
 
   window.addEventListener('hashchange', () => app.render());
+  if (sync) sync.onChange(() => {
+    document.querySelectorAll('[data-sync-status]').forEach((el) => { el.outerHTML = syncBadge(sync); });
+  });
   return app;
 }

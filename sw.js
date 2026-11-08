@@ -1,5 +1,5 @@
 // Offline support: network-first for app files (so updates arrive), cache fallback when offline.
-const VERSION = 'ftbl-afbec3803d';
+const VERSION = 'ftbl-5232887744';
 const ASSETS = [
   './',
   './css/app.css',
@@ -9,6 +9,8 @@ const ASSETS = [
   './icons/icon-512.png',
   './index.html',
   './js/core/actions.js',
+  './js/core/cloud.js',
+  './js/core/firebaseConfig.js',
   './js/core/rng.js',
   './js/core/storage.js',
   './js/core/store.js',
@@ -70,7 +72,7 @@ self.addEventListener('fetch', (e) => {
         return res;
       }).catch(() => caches.match(req, { ignoreSearch: true }).then((r) => r || caches.match('./')))
     );
-  } else if (/fonts\.(googleapis|gstatic)\.com/.test(url.host)) {
+  } else if (/fonts\.(googleapis|gstatic)\.com/.test(url.host) || url.pathname.startsWith('/firebasejs/')) {
     e.respondWith(caches.match(req).then((hit) => hit || fetch(req).then((res) => {
       const copy = res.clone(); caches.open(VERSION + '-fonts').then((c) => c.put(req, copy)); return res;
     })));

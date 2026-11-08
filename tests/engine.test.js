@@ -124,3 +124,35 @@ test('expected goals respond to strength, availability and form', () => {
   assert.ok(depleted.availability < 1);
   for (const s of depleted.lineup.xi) assert.ok(!state[s.pid], 'injured player not selected');
 });
+
+test('manual line-ups: chosen XI and bench are used; unavailable picks are covered by the chosen subs', async () => {
+  const { selectLineup } = await import('../js/engine/strength.js');
+  const { simulateMatch } = await import('../js/engine/match.js');
+  const T = team(76, 'man', { squad: true });
+  const A = team(76, 'opp', { squad: true });
+  const auto = selectLineup(T.players, '4-4-2', {}, 0.3);
+  // pick the 11 *worst* players instead (by overall), and a specific bench
+  const worst = [...T.players].sort((a, b) => a.overall - b.overall);
+  const xiPids = worst.slice(0, 11).map((p) => p.id);
+  const benchPids = worst.slice(11, 16).map((p) => p.id);
+  const manual = { manual: true, formation: '4-4-2', xi: xiPids, bench: benchPids };
+  const lu = selectLineup(T.players, '4-4-2', {}, 0.3, 9, manual);
+  assert.deepEqual(lu.xi.map((s) => s.pid), xiPids, 'exact XI in the chosen slots');
+  assert.deepEqual(lu.bench.slice(0, 5), benchPids, 'chosen subs first on the bench');
+  assert.notDeepEqual(auto.xi.map((s) => s.pid), xiPids);
+  // injured pick is replaced, preferring the user's substitutes
+  const state = { [xiPids[3]]: { fit: 100, inj: 2, sus: 0 } };
+  const lu2 = selectLineup(T.players, '4-4-2', state, 0.3, 9, manual);
+  assert.ok(!lu2.xi.some((s) => s.pid === xiPids[3]));
+  assert.ok(benchPids.includes(lu2.xi[3].pid), 'gap filled from the chosen bench');
+  // formation changed after saving: chosen players still start
+  const lu3 = selectLineup(T.players, '4-3-3', {}, 0.3, 9, manual);
+  assert.deepEqual(new Set(lu3.xi.map((s) => s.pid)), new Set(xiPids));
+  // used by the match engine via club.lineup, and a weaker chosen XI is genuinely weaker
+  const club = { ...T.club, lineup: manual, tactics: { formation: '4-4-2', style: 'balanced' } };
+  const r = simulateMatch({ home: { club, players: T.players }, away: A, params: params(), seed: 'm1' });
+  assert.deepEqual(r.lineups.home.xi.map((s) => s.pid), xiPids);
+  const best = run({ club: { ...T.club, tactics: club.tactics }, players: T.players }, A, params({ squadQualityInfluence: 100 }), 800, { seed: 'b' });
+  const weak = run({ club, players: T.players }, A, params({ squadQualityInfluence: 100 }), 800, { seed: 'b' });
+  assert.ok(weak.home < best.home, `weak XI wins less (${weak.home} vs ${best.home})`);
+});

@@ -1,5 +1,5 @@
 import { esc, fmtNum } from '../dom.js';
-import { ICONS, clubBadge, leagueLogo, formPills } from '../components.js';
+import { ICONS, clubBadge, leagueLogo, formPills, syncBadge } from '../components.js';
 import { computeTable } from '../../league/table.js';
 import { currentRound, totalRounds, clubForm, startSeason } from '../../league/season.js';
 import { buildDemoWorld } from '../../data/demo.js';
@@ -12,7 +12,7 @@ export function render(app) {
   if (!leagues.length && !nClubs) return onboarding();
   return `<div class="home">
     <section class="hero">
-      <div class="hero-top"><img src="icons/icon-192.png" alt="" class="hero-icon"><div><span class="brand big">ftbl</span><p>Football league simulator</p></div></div>
+      <div class="hero-top"><img src="icons/icon-192.png" alt="" class="hero-icon"><div><span class="brand big">ftbl</span><p>Football league simulator</p></div><a href="#/settings/data" class="hero-sync">${syncBadge(app.sync)}</a></div>
       <div class="hero-stats">
         <a href="#/leagues"><b>${leagues.length}</b><span>Leagues</span></a>
         <a href="#/clubs"><b>${nClubs}</b><span>Clubs</span></a>

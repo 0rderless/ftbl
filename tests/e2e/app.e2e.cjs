@@ -25,6 +25,33 @@ function serve() {
 
 const step = (name) => console.log('  ✓ ' + name);
 
+// ---- mock Firebase Realtime Database (shared by every browser context, like the real cloud) ----
+const remote = {};
+function rget(path) {
+  let n = remote;
+  for (const k of path.split('/').filter(Boolean)) { if (n == null) return null; n = n[k]; }
+  return n == null ? null : JSON.parse(JSON.stringify(n));
+}
+function rupdate(path, obj) {
+  for (const [k, v] of Object.entries(obj)) {
+    const parts = `${path}/${k}`.split('/').filter(Boolean);
+    let n = remote;
+    for (const p of parts.slice(0, -1)) n = n[p] || (n[p] = {});
+    if (v === null) delete n[parts[parts.length - 1]]; else n[parts[parts.length - 1]] = JSON.parse(JSON.stringify(v));
+  }
+}
+const MOCK_SDK = `window.firebase = { apps: [], initializeApp(c) { this.apps.push(c); return {}; },
+  database() { return { ref(path) { return {
+    get: () => window.__fb('get', path).then((v) => ({ exists: () => v != null, val: () => v })),
+    update: (obj) => window.__fb('update', path, obj),
+    remove: () => window.__fb('update', path.split('/').slice(0, -1).join('/'), { [path.split('/').pop()]: null }),
+  }; } }; } };`;
+async function withCloud(ctx) {
+  await ctx.exposeBinding('__fb', (src, op, path, value) => (op === 'get' ? rget(path) : (rupdate(path, value), null)));
+  await ctx.route(/gstatic\.com\/firebasejs\/.*app-compat/, (r) => r.fulfill({ contentType: 'text/javascript', body: MOCK_SDK }));
+  await ctx.route(/gstatic\.com\/firebasejs\/.*database-compat/, (r) => r.fulfill({ contentType: 'text/javascript', body: '' }));
+}
+
 (async () => {
   const srv = await serve();
   const base = `http://localhost:${srv.address().port}/`;
@@ -32,6 +59,7 @@ const step = (name) => console.log('  ✓ ' + name);
   const ctx = await browser.newContext({ ...devices['iPhone 13'] });
   // block external font requests so the test is hermetic
   await ctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
+  await withCloud(ctx);
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -118,7 +146,30 @@ const step = (name) => console.log('  ✓ ' + name);
     assert.equal(league.season.fixtures.length, 6);
     step('created a league; fixtures generated automatically (3 clubs, home & away = 6 matches)');
 
+    // ---- edit Testford's line-up: put Ezra up front and a chosen substitute on the bench ----
+    await go(`#/club/${tf.id}/squad`);
+    await page.click('[data-act=lineupMode][data-value=manual]');
+    await page.waitForSelector('.pp.edit');
+    w = await world();
+    assert.equal(w.clubs[tf.id].lineup.manual, true);
+    const stIndex = w.clubs[tf.id].lineup.formation === '4-3-3' ? 9 : 10; // 4-3-3: RW ST LW
+    await page.click(`.pp.edit[data-i="${stIndex}"]`);
+    await page.click(`.sheet [data-sheet="${ezra.id}"]`);
+    await page.waitForTimeout(250);
+    w = await world();
+    assert.equal(w.clubs[tf.id].lineup.xi[stIndex], ezra.id);
+    const subPick = Object.values(w.players).find((p) => p.clubId === tf.id && !w.clubs[tf.id].lineup.xi.includes(p.id) && p.position === 'GK');
+    await page.click('[data-act=benchSlot][data-i="0"]');
+    await page.click(`.sheet [data-sheet="${subPick.id}"]`);
+    await page.waitForTimeout(250);
+    w = await world();
+    assert.equal(w.clubs[tf.id].lineup.bench[0], subPick.id);
+    // swap two starters by picking a player already in the XI
+    const gkPid = w.clubs[tf.id].lineup.xi[0];
+    step('edited the line-up: own player in the starting XI and a chosen substitute');
+
     // ---- simulate single match ----
+    await go(`#/league/${league.id}/fixtures`);
     await page.click('[data-act=simOne]');
     await page.waitForTimeout(200);
     w = await world();
@@ -153,6 +204,11 @@ const step = (name) => console.log('  ✓ ' + name);
     w = await world();
     const L = w.leagues[league.id];
     assert.ok(L.season.finished);
+    const tfGames = L.season.fixtures.filter((f) => f.home === tf.id || f.away === tf.id);
+    const withEzra = tfGames.filter((f) => f.result.lineups[f.home === tf.id ? 'home' : 'away'].xi.some((s) => s.pid === ezra.id && s.slot === 'ST'));
+    assert.ok(withEzra.length >= tfGames.length - 1, `Ezra started up front (${withEzra.length}/${tfGames.length})`);
+    assert.ok(tfGames.some((f) => f.result.lineups[f.home === tf.id ? 'home' : 'away'].xi[0].pid === gkPid));
+    step('matches used the chosen line-up');
     assert.equal(L.history.length, 1);
     step('simulated the full season; champion crowned and archived');
 
@@ -186,6 +242,22 @@ const step = (name) => console.log('  ✓ ' + name);
     delete before.savedAt; delete after.savedAt;
     assert.deepEqual(after, before);
     step('all data and settings survived a full page reload (IndexedDB)');
+
+    // ---- cloud: everything uploaded; a brand-new device downloads it ----
+    await page.evaluate(async () => { await window.ftbl.store.flush(); await window.ftbl.sync.push(); });
+    assert.ok(rget('ftbl/meta'), 'data uploaded to the cloud');
+    const ctx2 = await browser.newContext({ ...devices['iPhone 13'] });
+    await ctx2.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
+    await withCloud(ctx2);
+    const page2 = await ctx2.newPage();
+    await page2.goto(base);
+    await page2.waitForFunction(() => window.ftbl && Object.keys(window.ftbl.store.world.clubs).length > 0, null, { timeout: 15000 });
+    const w2 = await page2.evaluate(() => JSON.parse(JSON.stringify(window.ftbl.store.world)));
+    const w1 = await world();
+    assert.deepEqual(w2, w1, 'new device has identical data, including save time');
+    assert.equal(await page2.evaluate(() => window.ftbl.sync.status), 'synced');
+    await ctx2.close();
+    step('cloud save: data uploaded and a fresh device downloaded an identical copy');
 
     // ---- next season ----
     await go(`#/league/${league.id}/fixtures`);
