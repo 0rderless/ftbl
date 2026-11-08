@@ -127,7 +127,7 @@ function dataTab(app) {
 
 function backupRow(b, where) {
   const when = new Date(Number(b.at || b.key)).toLocaleString();
-  const reasons = { 'before-cloud-download': 'Before cloud download', 'before-reset': 'Before reset', 'before-import': 'Before import', 'before-restore': 'Before restore', 'replaced-by-newer-device': 'Replaced by newer device', replaced: 'Replaced by another device', manual: 'Manual backup' };
+  const reasons = { 'before-cloud-download': 'Before cloud download', 'before-reset': 'Before reset', 'before-import': 'Before import', 'before-restore': 'Before restore', 'replaced-by-newer-device': 'Replaced by newer device', replaced: 'Replaced by another device', manual: 'Manual backup', 'before-upgrade': 'Before the 2026/27 restart' };
   return `<div class="backup-row"><div><b>${esc(when)}</b><small>${esc(reasons[b.reason] || b.reason || '')}${b.clubs != null ? ` · ${b.clubs} clubs · ${b.leagues} leagues` : ''} · ${Math.round((b.size || 0) / 1024)} KB · ${where}</small></div>
     <button class="btn sm" data-act="restore" data-where="${where}" data-key="${esc(b.key)}">Restore</button></div>`;
 }

@@ -135,7 +135,7 @@ test('cup seasons are reproducible from the seed', async () => {
 test('migration adds the Champions League once, keeps every existing record, and is idempotent', () => {
   const { w, k } = worldWithKronliga();
   const before = JSON.parse(JSON.stringify(w));
-  assert.equal(pendingMigrations(w).length, 3);
+  assert.equal(pendingMigrations(w).length, 4);
   const msgs = runMigrations(w);
   assert.equal(msgs.length, 1, 'only the Champions League message (clubs are already real)');
   const cups = Object.values(w.leagues).filter(isCup);
@@ -209,4 +209,47 @@ test('cup season is labelled as the season after the one its qualifiers came fro
   runMigrations(w);
   assert.equal(Number(cup.season.label.slice(0, 4)), Number(from.slice(0, 4)) + 1);
   assert.equal(JSON.stringify(cup.season.fixtures), fx);
+});
+
+test('2026/27 fresh start: both competitions restart with no history; clubs, players and line-ups kept', () => {
+  const { w, k } = worldWithKronliga();
+  runMigrations(w); // adds the Champions League (fresh start is a no-op for a brand-new cup)
+  const cup = Object.values(w.leagues).find(isCup);
+  assert.equal(cup.season.number, 1);
+  playSeason(w, cup, P);
+  playSeason(w, k, P);
+  startNextSeason(w, k);
+  const someClub = Object.values(w.clubs).find((c) => !c.country);
+  someClub.lineup = { manual: true, formation: '4-4-2', xi: [], bench: [] };
+  const lastTop3 = k.history[k.history.length - 1].table.slice(0, 3).map((r) => r.clubId);
+  const clubIds = Object.keys(w.clubs).sort(), playerIds = Object.keys(w.players).sort();
+  const names = Object.values(w.clubs).map((c) => c.name).sort();
+  // simulate an older device whose Champions League already existed when this update arrived
+  delete w.settings.ui.migrations['fresh-start-2026-v1'];
+  const msgs = runMigrations(w);
+  assert.ok(msgs.some((m) => /Fresh start/.test(m)));
+  assert.equal(k.season.label, '2026/27');
+  assert.equal(k.history.length, 0);
+  assert.ok(k.season.fixtures.every((f) => !f.result));
+  assert.equal(cup.season.label, '2026/27');
+  assert.equal(cup.history.length, 0);
+  assert.ok(cup.season.fixtures.every((f) => !f.result));
+  assert.deepEqual(cup.season.qualifiers, lastTop3);
+  assert.equal(cup.season.clubIds.length, 32);
+  assert.deepEqual(Object.keys(w.clubs).sort(), clubIds, 'no clubs removed');
+  assert.deepEqual(Object.keys(w.players).sort(), playerIds, 'no players removed');
+  assert.deepEqual(Object.values(w.clubs).map((c) => c.name).sort(), names);
+  assert.ok(Object.values(w.clubs).every((c) => c.honours.length === 0), 'old honours cleared');
+  assert.ok(Object.values(w.players).every((p) => p.career.apps === 0 && !(p.awards || []).length), 'old stats cleared');
+  assert.equal(someClub.lineup.manual, true, 'line-ups kept');
+  // runs once only
+  playRound(w, k, P);
+  assert.deepEqual(runMigrations(w), []);
+  assert.ok(k.season.fixtures.some((f) => f.result));
+  // next Champions League takes the top 3 of the restarted Kronliga 2026/27
+  playSeason(w, k, P); playSeason(w, cup, P);
+  assert.deepEqual(pendingQualifiers(w, cup), []);
+  startNextSeason(w, cup);
+  assert.equal(cup.season.label, '2027/28');
+  assert.deepEqual(cup.season.qualifiers, k.history[0].table.slice(0, 3).map((r) => r.clubId));
 });

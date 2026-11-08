@@ -2,10 +2,10 @@
 import { Store } from './core/store.js';
 import { pickAdapter } from './core/storage.js';
 import { createApp } from './ui/app.js';
-import { CloudStore, SyncManager, firebaseDb } from './core/cloud.js';
+import { CloudStore, SyncManager, firebaseDb, withTimeout } from './core/cloud.js';
 import { firebaseConfig, CLOUD_ROOT } from './core/firebaseConfig.js';
 import { toast } from './ui/dom.js';
-import { runMigrations, pendingMigrations } from './core/migrations.js';
+import { runMigrations, pendingMigrations, needsBackup } from './core/migrations.js';
 
 const memory = {
   get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
@@ -38,11 +38,19 @@ async function boot() {
     if (r === 'pulled') toast('Loaded your latest data from the cloud', 'ok');
     if (r === 'pushed') toast('Your data is now saved to the cloud', 'ok');
     // one-time upgrades run on the newest copy of the data
-    if (pendingMigrations(store.world).length) {
-      const msgs = app.act((w) => runMigrations(w));
-      if (msgs && msgs.length) setTimeout(() => toast(msgs.join(' · '), 'ok'), 1200);
-    }
+    if (pendingMigrations(store.world).length) runUpgrades();
   });
+  async function runUpgrades() {
+    if (needsBackup(store.world)) {
+      // keep a full copy (on the device and in the cloud) before any reset
+      await store.backupLocal('before-upgrade');
+      if (sync.cloud && sync.ready) {
+        try { await withTimeout(sync.cloud.backupCurrent('before-upgrade'), 20000, 'Cloud backup'); } catch (e) { console.warn(e); }
+      }
+    }
+    const msgs = app.act((w) => runMigrations(w));
+    if (msgs && msgs.length) setTimeout(() => toast(msgs.join(' · '), 'ok'), 1200);
+  }
   // never lose data: save locally and to the cloud whenever the app is hidden or closed
   const flush = () => { store.flush().then(() => { if (sync.ready) sync.push().catch(() => {}); }); };
   document.addEventListener('visibilitychange', () => {

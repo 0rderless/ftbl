@@ -40,12 +40,12 @@ function association(world, clubId) {
 }
 
 /** Who plays in the next season: league qualifiers + continental regulars. */
-export function cupEntrants(world, cup) {
+export function cupEntrants(world, cup, override = null) {
   const size = cup.config.size || 32;
-  const qualifiers = [];
-  const qualifiedFrom = {};
+  const qualifiers = override ? override.qualifiers.filter((id) => world.clubs[id]) : [];
+  const qualifiedFrom = override ? { ...override.qualifiedFrom } : {};
   const reserves = [];
-  for (const { leagueId, spots } of cup.config.qualifiers || []) {
+  for (const { leagueId, spots } of override ? [] : cup.config.qualifiers || []) {
     const l = world.leagues[leagueId];
     const h = l && l.history[l.history.length - 1];
     if (!h) continue;
@@ -81,10 +81,10 @@ function drawGroups(world, field, rng) {
   return Array.from({ length: nGroups }, (_, i) => ({ name: GROUP_NAMES[i], clubIds: sorted.filter((_, k) => k % nGroups === i) }));
 }
 
-export function startCupSeason(world, cup, number = 1, seed) {
+export function startCupSeason(world, cup, number = 1, seed, override = null) {
   const s = seed || randomSeed();
   const rng = new RNG('draw|' + s);
-  const { field, qualifiers, qualifiedFrom } = cupEntrants(world, cup);
+  const { field, qualifiers, qualifiedFrom } = cupEntrants(world, cup, override);
   if (field.length < 8) throw new Error('Not enough clubs for the cup');
   const groups = drawGroups(world, field, rng);
   const fixtures = [];
