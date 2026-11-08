@@ -27,7 +27,7 @@ test('the field: continental clubs minus the 3 weakest, plus the league top 3', 
   const top3 = k.history[0].table.slice(0, 3).map((r) => r.clubId);
   const { cup, dropped } = createContinentalCup(w, { qualifiers: [{ leagueId: k.id, spots: 3 }], startYear: 2027 });
   assert.equal(dropped.length, 3);
-  assert.deepEqual(dropped.sort(), ['FK Vltavín', 'Fjordheim IL', 'Orzeł Mazowia'].sort(), 'the three weakest continental clubs');
+  assert.deepEqual(dropped.sort(), ['Young Boys', 'Malmö FF', 'Sparta Prague'].sort(), 'the three weakest continental clubs');
   assert.ok(!Object.values(w.clubs).some((c) => dropped.includes(c.name)), 'dropped clubs removed');
   assert.equal(cup.season.clubIds.length, 32);
   assert.deepEqual(cup.season.qualifiers, top3);
@@ -135,9 +135,9 @@ test('cup seasons are reproducible from the seed', async () => {
 test('migration adds the Champions League once, keeps every existing record, and is idempotent', () => {
   const { w, k } = worldWithKronliga();
   const before = JSON.parse(JSON.stringify(w));
-  assert.equal(pendingMigrations(w).length, 1);
+  assert.equal(pendingMigrations(w).length, 3);
   const msgs = runMigrations(w);
-  assert.equal(msgs.length, 1);
+  assert.equal(msgs.length, 1, 'only the Champions League message (clubs are already real)');
   const cups = Object.values(w.leagues).filter(isCup);
   assert.equal(cups.length, 1);
   assert.equal(cups[0].name, 'Champions League');
@@ -155,11 +155,58 @@ test('migration adds the Champions League once, keeps every existing record, and
   // a world without Kronliga history is left alone (and retried later)
   const empty = emptyWorld();
   assert.deepEqual(runMigrations(empty), []);
-  assert.equal(pendingMigrations(empty).length, 1);
+  assert.equal(pendingMigrations(empty).length, 1, 'Champions League upgrade retried later');
 });
 
 test('league table marks exactly the top 3 as Champions League places', async () => {
   const { zoneFor } = await import('../js/league/table.js');
   const cfg = { championsSpots: 1, continentalSpots: 3, continentalCupId: 'ucl', relegationSpots: 0 };
   assert.deepEqual([1, 2, 3, 4].map((p) => zoneFor(p, 12, cfg)), ['champion', 'continental', 'continental', '']);
+});
+
+test('upgrade renames old fictional continental clubs to real clubs, keeping results and user edits', async () => {
+  const { realizeContinentalClubs, OLD_FICTIONAL, CONTINENTAL_CLUBS } = await import('../js/data/continental.js');
+  const { w, k } = worldWithKronliga();
+  const { cup } = createContinentalCup(w, { qualifiers: [{ leagueId: k.id, spots: 3 }] });
+  // turn the generated real clubs back into the old fictional names to mimic version 1 data
+  const regs = cup.regulars.map((id) => w.clubs[id]);
+  const oldByCountry = {};
+  regs.forEach((c, i) => { c.name = OLD_FICTIONAL[i]; });
+  regs[0].name = 'My Renamed Club'; // a club the user renamed must be left alone
+  playRound(w, cup, P);
+  const before = JSON.stringify(cup.season.fixtures.map((f) => [f.id, f.result && f.result.hg, f.result && f.result.ag]));
+  const keep = regs.map((c) => c.id);
+  const changes = realizeContinentalClubs(w);
+  assert.equal(changes.length, 28);
+  assert.equal(w.clubs[keep[0]].name, 'My Renamed Club');
+  const names = regs.map((c) => c.name);
+  assert.equal(new Set(names).size, names.length, 'no duplicate names');
+  for (const n of names.slice(1)) assert.ok(CONTINENTAL_CLUBS.some((e) => e[0] === n), n);
+  assert.equal(JSON.stringify(cup.season.fixtures.map((f) => [f.id, f.result && f.result.hg, f.result && f.result.ag])), before, 'results untouched');
+  assert.deepEqual(regs.map((c) => c.id), keep, 'same club records (ids) kept');
+  const city = regs.find((c) => c.name === 'Manchester City');
+  if (city) {
+    const sq = Object.values(w.players).filter((p) => p.clubId === city.id);
+    const avg = sq.reduce((t, p) => t + p.overall, 0) / sq.length;
+    assert.ok(avg > 82, `squad rescaled to the new club strength (${avg})`);
+  }
+  assert.deepEqual(realizeContinentalClubs(w), [], 'idempotent');
+});
+
+test('cup season is labelled as the season after the one its qualifiers came from', () => {
+  const { w, k } = worldWithKronliga();
+  playSeason(w, k, P); // league season 2 finished before the upgrade runs
+  runMigrations(w);
+  const cup = Object.values(w.leagues).find(isCup);
+  const from = Object.values(cup.season.qualifiedFrom)[0];
+  assert.equal(from, k.history[k.history.length - 1].label);
+  assert.notEqual(cup.season.label, from);
+  assert.equal(Number(cup.season.label.slice(0, 4)), Number(from.slice(0, 4)) + 1);
+  // and an older cup with the wrong label gets fixed without touching results
+  cup.config.startYear -= 1; cup.season.label = from;
+  w.settings.ui.migrations['cup-season-label-v1'] = 0; delete w.settings.ui.migrations['cup-season-label-v1'];
+  const fx = JSON.stringify(cup.season.fixtures);
+  runMigrations(w);
+  assert.equal(Number(cup.season.label.slice(0, 4)), Number(from.slice(0, 4)) + 1);
+  assert.equal(JSON.stringify(cup.season.fixtures), fx);
 });
