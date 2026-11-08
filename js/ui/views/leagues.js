@@ -2,13 +2,14 @@ import { esc } from '../dom.js';
 import { ICONS, header, leagueLogo, clubBadge, emptyState } from '../components.js';
 import { currentRound, totalRounds } from '../../league/season.js';
 import { computeTable } from '../../league/table.js';
+import { roundLabel } from '../../league/cup.js';
 
 export function render(app) {
   const w = app.world;
   const leagues = Object.values(w.leagues).sort((a, b) => a.createdAt - b.createdAt);
   const body = leagues.length ? leagues.map((l) => {
     const s = l.season;
-    const t = s ? computeTable(s.clubIds, s.fixtures, l.config) : [];
+    const t = s && l.type !== 'cup' ? computeTable(s.clubIds, s.fixtures, l.config) : [];
     const leader = t[0] && w.clubs[t[0].clubId];
     const up = l.config.upperLeagueId && w.leagues[l.config.upperLeagueId];
     const down = l.config.lowerLeagueId && w.leagues[l.config.lowerLeagueId];
@@ -17,7 +18,7 @@ export function render(app) {
       ${leagueLogo(l, 52)}
       <div class="lc-body">
         <h3>${esc(l.name)}</h3>
-        <p>${s ? `${esc(s.label)} · ${s.finished ? 'Complete' : `MD ${currentRound(l)}/${totalRounds(l)}`}` : ''} · ${l.clubIds.length} clubs</p>
+        <p>${s ? `${esc(s.label)} · ${s.finished ? 'Complete' : l.type === 'cup' ? esc(roundLabel(currentRound(l))) : `MD ${currentRound(l)}/${totalRounds(l)}`}` : ''} · ${l.clubIds.length} clubs</p>
         <p class="tags">${leader && s && s.fixtures.some((f) => f.result) ? `<span class="tag">${clubBadge(leader, 14)} ${esc(leader.short)} lead</span>` : ''}
           ${lastChamp ? `<span class="tag gold">${ICONS.trophy} ${esc(lastChamp.short)}</span>` : ''}
           ${up ? `<span class="tag">↑ ${esc(up.name)}</span>` : ''}${down ? `<span class="tag">↓ ${esc(down.name)}</span>` : ''}</p>

@@ -4,6 +4,7 @@ import { newClub, newPlayer, newLeague, clampRating, makeShort } from '../data/m
 import { generateSquad } from '../data/generate.js';
 import { startSeason, seasonStarted, restartSeason } from '../league/season.js';
 import { POSITIONS } from '../engine/tactics.js';
+import { isCup, startCupSeason } from '../league/cup.js';
 
 export class ActionError extends Error {}
 
@@ -211,6 +212,7 @@ export function restartLeagueSeason(world, id) {
   const l = world.leagues[id];
   if (!l) throw new ActionError('League not found');
   if (l.season && l.season.finished) throw new ActionError('This season is complete. Start the next season instead.');
+  if (isCup(l)) return startCupSeason(world, l, l.season ? l.season.number : 1);
   l.clubIds = l.clubIds.filter((c) => world.clubs[c]);
   restartSeason(l, true);
   return l;
@@ -220,5 +222,26 @@ export function deleteLeague(world, id) {
   const l = world.leagues[id];
   if (!l) return;
   linkLeagues(world, l, null, null);
+  for (const x of Object.values(world.leagues)) if (x.config.continentalCupId === id) x.config.continentalCupId = null;
   delete world.leagues[id];
+}
+
+/** Edit a cup: identity, logo, qualifying leagues and the continental clubs (used from the next draw). */
+export function updateCup(world, id, data = {}) {
+  const cup = world.leagues[id];
+  if (!cup || !isCup(cup)) throw new ActionError('Competition not found');
+  if (data.name != null) cup.name = str(data.name) || cup.name;
+  if (data.short != null) cup.short = str(data.short, 4).toUpperCase() || cup.short;
+  if (data.logo) cup.logo = data.logo;
+  if (Array.isArray(data.regulars)) cup.regulars = [...new Set(data.regulars.filter((c) => world.clubs[c]))];
+  if (Array.isArray(data.qualifiers)) {
+    for (const x of Object.values(world.leagues)) if (x.config.continentalCupId === id) x.config.continentalCupId = null;
+    cup.config.qualifiers = data.qualifiers.filter((q) => world.leagues[q.leagueId] && !isCup(world.leagues[q.leagueId]))
+      .map((q) => ({ leagueId: q.leagueId, spots: Math.max(1, Math.min(8, Math.round(Number(q.spots) || 1))) }));
+    for (const q of cup.config.qualifiers) {
+      world.leagues[q.leagueId].config.continentalCupId = id;
+      world.leagues[q.leagueId].config.continentalSpots = q.spots;
+    }
+  }
+  return cup;
 }

@@ -285,6 +285,43 @@ async function withCloud(ctx) {
     assert.ok(w.leagues[league.id].season.fixtures.every((f) => !f.result));
     step('multiple leagues stay independent');
 
+    // ---- Champions League: finish a Kronliga season, reload -> one-time upgrade adds the UCL ----
+    await page.evaluate(async (id) => {
+      const m = await import('/js/league/season.js');
+      window.ftbl.app.act((w) => m.playSeason(w, w.leagues[id], window.ftbl.app.params()));
+      await window.ftbl.store.flush();
+    }, k1.id);
+    await page.reload();
+    await page.waitForFunction(() => window.ftbl && Object.values(window.ftbl.store.world.leagues).some((l) => l.type === 'cup'), null, { timeout: 15000 });
+    w = await world();
+    const ucl = Object.values(w.leagues).find((l) => l.type === 'cup');
+    const top3 = w.leagues[k1.id].history[0].table.slice(0, 3).map((r) => r.clubId);
+    assert.deepEqual(ucl.season.qualifiers, top3);
+    assert.equal(ucl.season.clubIds.length, 32);
+    assert.equal(w.leagues[k1.id].config.continentalCupId, ucl.id);
+    await go(`#/league/${ucl.id}/fixtures`);
+    await page.click('.sim-bar [data-act=play]');
+    await page.waitForSelector('.md-panel');
+    await page.click('.md-panel .btn');
+    await go(`#/league/${ucl.id}/groups`);
+    await page.waitForSelector('.group-card');
+    await go(`#/league/${ucl.id}/fixtures`);
+    await page.click('.sim-bar [data-act=season]');
+    await page.click('.sheet [data-sheet=true]');
+    await page.waitForSelector('.champ', { timeout: 10000 });
+    await page.click('.champ [data-close]');
+    await go(`#/league/${ucl.id}/bracket`);
+    await page.waitForSelector('.tie');
+    w = await world();
+    assert.ok(w.leagues[ucl.id].season.finished);
+    const champ = w.leagues[ucl.id].history[0].championId;
+    const finalFx = w.leagues[ucl.id].season.fixtures.find((f) => f.stage === 'final');
+    await go(`#/match/${ucl.id}/${finalFx.id}`);
+    await page.waitForSelector('.scoreboard');
+    await go(`#/club/${champ}/honours`);
+    await page.waitForSelector('.trophy-card.cup');
+    step('Champions League added with the Kronliga top 3; group stage, knockouts and final played');
+
     // ---- delete flow guards ----
     await go(`#/club/${Object.values(w.clubs).find((c) => c.name === 'Ravenmoor FC').id}/squad`);
     await page.waitForSelector('.pitch');

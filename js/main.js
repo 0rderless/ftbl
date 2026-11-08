@@ -5,6 +5,7 @@ import { createApp } from './ui/app.js';
 import { CloudStore, SyncManager, firebaseDb } from './core/cloud.js';
 import { firebaseConfig, CLOUD_ROOT } from './core/firebaseConfig.js';
 import { toast } from './ui/dom.js';
+import { runMigrations, pendingMigrations } from './core/migrations.js';
 
 const memory = {
   get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
@@ -36,6 +37,11 @@ async function boot() {
   sync.start().then((r) => {
     if (r === 'pulled') toast('Loaded your latest data from the cloud', 'ok');
     if (r === 'pushed') toast('Your data is now saved to the cloud', 'ok');
+    // one-time upgrades run on the newest copy of the data
+    if (pendingMigrations(store.world).length) {
+      const msgs = app.act((w) => runMigrations(w));
+      if (msgs && msgs.length) setTimeout(() => toast(msgs.join(' · '), 'ok'), 1200);
+    }
   });
   // never lose data: save locally and to the cloud whenever the app is hidden or closed
   const flush = () => { store.flush().then(() => { if (sync.ready) sync.push().catch(() => {}); }); };

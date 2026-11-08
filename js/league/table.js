@@ -74,6 +74,9 @@ export function zoneFor(pos, total, config) {
   if (pos === 1 && (config.championsSpots || 0) >= 1) return 'champion';
   if (config.upperLeagueId) {
     if (pos <= (config.promotionSpots || 0)) return 'promotion';
+  } else if (config.continentalCupId) {
+    // linked to a cup: the top N (champion included) qualify
+    if (pos <= (config.continentalSpots || 0)) return 'continental';
   } else if (pos <= (config.championsSpots || 0) + (config.continentalSpots || 0)) return 'continental';
   if (pos > total - (config.relegationSpots || 0)) return 'relegation';
   return '';

@@ -618,3 +618,35 @@ button.pp { background: none; border: 0; padding: 0; color: inherit; cursor: poi
 .pick-sheet { overflow-y: auto; margin: 10px -18px 12px; border-top: 1px solid var(--line); }
 .pick-row { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 18px; background: none; border: 0; border-bottom: 1px solid var(--line); color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .pick-row:active { background: var(--card2); }
+/* champions league */
+.fx-list.cup .fx-row { border-bottom: 0; }
+.fx-note { font-size: 11px; color: var(--muted); text-align: center; padding: 0 10px 8px; border-bottom: 1px solid var(--line); }
+.fx-note:last-child { border-bottom: 0; }
+.groups-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 0 12px; }
+.group-card .ltable td.c-club .full.show { max-width: 150px; }
+.hl-dot { background: rgba(139, 92, 246, .5); }
+.tie { display: block; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+.tie:last-child { border: 0; }
+.tie-team { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-weight: 600; font-size: 14px; }
+.tie-team span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tie-team b { font-family: var(--head); font-size: 20px; min-width: 22px; text-align: right; }
+.tie-team.win { color: var(--text); } .tie-team.win b { color: var(--accent2); }
+.tie-team.out { color: var(--dim); opacity: .7; }
+.tie small { display: block; color: var(--muted); font-size: 11.5px; margin-top: 2px; }
+.sb-pens { width: 100%; font-size: 11px; color: var(--gold); font-weight: 700; letter-spacing: .5px; }
+.pens { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; }
+.pen { display: flex; gap: 8px; align-items: center; font-size: 13px; }
+.pen.away { grid-column: 2; }
+.pen.home { grid-column: 1; }
+.pen i { font-style: normal; width: 18px; text-align: center; font-weight: 800; }
+.pen i.ok { color: var(--ok); } .pen i.miss { color: var(--bad); }
+.md-score small { font-family: var(--body); font-size: 10px; color: var(--gold); margin-left: 2px; }
+.ucl-card .lc-head, .champion-banner.ucl { background: linear-gradient(120deg, rgba(30, 58, 138, .55), rgba(139, 92, 246, .15) 80%); }
+.hist-final { display: flex; align-items: center; gap: 10px; }
+.hf-main { flex: 1; min-width: 0; }
+.hf-main b { display: block; font-size: 14px; }
+.hf-main small { display: flex; gap: 4px; align-items: center; color: var(--muted); font-size: 12px; }
+.cup-status { font-size: 15px !important; }
+.md-panel { max-height: calc(100vh - var(--safe-top) - var(--safe-bot) - 32px); max-height: calc(100dvh - var(--safe-top) - var(--safe-bot) - 32px); }
+.md-list { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.md-panel > .btn { flex: none; }

@@ -6,6 +6,7 @@ import { clubForm, playerStats } from '../../league/season.js';
 import { selectLineup } from '../../engine/strength.js';
 import { FORMATION_KEYS, FORMATIONS, STYLES, STYLE_KEYS, POSITIONS, positionFit } from '../../engine/tactics.js';
 import { clubRecords } from '../../league/records.js';
+import { cupClubStatus } from '../../league/cup.js';
 import { fillSquad, releaseSquad, squadOf, updateClub } from '../../core/actions.js';
 import { pitchHTML } from './match.js';
 
@@ -41,12 +42,16 @@ function overviewTab(app, c) {
   const w = app.world;
   const leagues = Object.values(w.leagues).filter((l) => l.season && l.season.clubIds.includes(c.id));
   const standings = leagues.map((l) => {
+    if (l.type === 'cup') {
+      return `<a class="card standing" href="#/league/${l.id}/${l.season.ties.length ? 'bracket' : 'groups'}">${leagueLogo(l, 36)}<div><b>${esc(l.name)}</b><small>${esc(l.season.label)}</small></div>
+      <div class="st-pos"><b class="cup-status">${esc(cupClubStatus(l, c.id))}</b></div></a>`;
+    }
     const t = computeTable(l.season.clubIds, l.season.fixtures, l.config);
     const r = t.find((x) => x.clubId === c.id);
     return `<a class="card standing" href="#/league/${l.id}/table">${leagueLogo(l, 36)}<div><b>${esc(l.name)}</b><small>${esc(l.season.label)}</small></div>
       <div class="st-pos"><b>${r.pos}<sup>${ord(r.pos)}</sup></b><small>${r.pts} pts · ${r.p} played</small></div>${formPills(clubForm(l, c.id))}</a>`;
   }).join('');
-  const titles = c.honours.filter((h) => h.type === 'league').length;
+  const titles = c.honours.filter((h) => h.type === 'league' || h.type === 'cup').length;
   return `${standings || '<p class="hint">This club is not in a league yet.</p>'}
     <div class="card"><h3 class="card-title">Ratings</h3>
       ${bar('Overall', c.ratings.overall)}${bar('Attack', c.ratings.att)}${bar('Midfield', c.ratings.mid)}${bar('Defence', c.ratings.def)}${bar('Goalkeeper', c.ratings.gk)}</div>
@@ -56,7 +61,7 @@ function overviewTab(app, c) {
       <p class="hint">Tactics change line strengths and create match-up advantages, scaled by the Tactical Influence setting.</p></div>
     <div class="card"><h3 class="card-title">Kits</h3><div class="kits">
       ${['home', 'away', 'third'].map((k) => `<div class="kit-item">${kitSVG(c.kits[k], 76)}<small>${k[0].toUpperCase() + k.slice(1)}</small></div>`).join('')}</div></div>
-    <div class="card"><h3 class="card-title">Trophy cabinet</h3>${titles ? `<p class="trophies">${'🏆'.repeat(Math.min(titles, 20))} <b>${titles}</b> league title${titles > 1 ? 's' : ''}</p>` : '<p class="muted">No trophies yet.</p>'}<a href="#/club/${c.id}/honours" class="link">All honours ›</a></div>`;
+    <div class="card"><h3 class="card-title">Trophy cabinet</h3>${titles ? `<p class="trophies">${'🏆'.repeat(Math.min(titles, 20))} <b>${titles}</b> major troph${titles > 1 ? 'ies' : 'y'}</p>` : '<p class="muted">No trophies yet.</p>'}<a href="#/club/${c.id}/honours" class="link">All honours ›</a></div>`;
 }
 
 function statusOf(ps, pid) {
@@ -164,11 +169,11 @@ function honoursTab(app, c) {
     const key = h.type + '|' + h.leagueName;
     (groups[key] || (groups[key] = { ...h, seasons: [] })).seasons.push(h.season);
   }
-  const order = { league: 0, promotion: 1, runnerup: 2 };
+  const order = { cup: 0, league: 1, cupfinal: 2, promotion: 3, runnerup: 4 };
   const items = Object.values(groups).sort((a, b) => order[a.type] - order[b.type] || b.seasons.length - a.seasons.length);
   if (!items.length) return emptyState('The cabinet is empty', 'Win a league title or earn promotion to fill it.');
-  const icon = { league: '🏆', promotion: '⬆️', runnerup: '🥈' };
-  const title = { league: 'Champions', promotion: 'Promoted', runnerup: 'Runners-up' };
+  const icon = { league: '🏆', promotion: '⬆️', runnerup: '🥈', cup: '⭐', cupfinal: '🥈' };
+  const title = { league: 'Champions', promotion: 'Promoted', runnerup: 'Runners-up', cup: 'Winners', cupfinal: 'Finalists' };
   return `<div class="cabinet">${items.map((g) => `<div class="card trophy-card ${g.type}"><div class="tc-icon">${icon[g.type]}</div>
     <div><small>${title[g.type]}</small><h3>${esc(g.leagueName)}</h3><p>${g.seasons.map(esc).join(' · ')}</p></div><b class="tc-count">${g.seasons.length}</b></div>`).join('')}</div>`;
 }

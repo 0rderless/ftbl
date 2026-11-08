@@ -59,6 +59,7 @@ export function newClub(partial = {}) {
     name: partial.name || 'New Club FC',
     short: (partial.short || makeShort(partial.name || 'New Club')).toUpperCase().slice(0, 4),
     founded: partial.founded || 1900,
+    country: partial.country || null,
     colors: { primary, secondary, ...(partial.colors || {}) },
     badge: partial.badge || { shape: 'shield', pattern: 'solid', emblem: 'ball', c1: primary, c2: secondary, c3: secondary, trim: secondary, text: 'short', stars: 0 },
     kits: partial.kits || defaultKits(primary, secondary),

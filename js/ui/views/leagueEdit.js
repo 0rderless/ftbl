@@ -3,7 +3,7 @@ import { ICONS, header, clubBadge, segmented, slider } from '../components.js';
 import { LEAGUE_LOGO_PRESETS, BADGE_PRESETS } from '../badge.js';
 import { designerHTML, applyDesignerAction, applyDesignerInput, refreshPreview, resetDesigner } from '../badgeDesigner.js';
 import { LEAGUE_DEFAULTS, makeShort } from '../../data/model.js';
-import { createLeague, updateLeague, setLeagueClubs, restartLeagueSeason, deleteLeague } from '../../core/actions.js';
+import { createLeague, updateLeague, setLeagueClubs, restartLeagueSeason, deleteLeague, updateCup } from '../../core/actions.js';
 import { seasonStarted } from '../../league/season.js';
 
 let draft = null, draftKey = null, search = '';
@@ -14,6 +14,11 @@ function init(app, id) {
   draftKey = key; search = '';
   resetDesigner();
   const l = id && app.world.leagues[id];
+  if (l && l.type === 'cup') {
+    const q = (l.config.qualifiers || [])[0] || { leagueId: '', spots: 3 };
+    draft = { type: 'cup', name: l.name, short: l.short, logo: { ...l.logo }, clubIds: (l.regulars || []).slice(), config: { ...l.config }, qualifier: { ...q } };
+    return;
+  }
   draft = l
     ? { name: l.name, short: l.short, logo: { ...l.logo }, clubIds: l.clubIds.slice(), config: { ...l.config } }
     : { name: '', short: '', logo: { ...LEAGUE_LOGO_PRESETS[0].spec }, clubIds: [], config: { ...LEAGUE_DEFAULTS } };
@@ -26,6 +31,7 @@ export function render(app, id) {
   const w = app.world;
   const l = id && w.leagues[id];
   if (id && !l) return `${header({ title: 'League not found', back: '#/leagues' })}`;
+  if (draft.type === 'cup') return cupEditor(app, l);
   const locked = l && seasonStarted(l) && !l.season.finished;
   const c = draft.config;
   const clubs = Object.values(w.clubs).sort((a, b) => a.name.localeCompare(b.name));
@@ -95,6 +101,40 @@ export function render(app, id) {
 // League logos can also use club badge presets for variety
 const BADGE_LIKE = BADGE_PRESETS.slice(0, 12);
 
+function cupEditor(app, l) {
+  const w = app.world;
+  const q = draft.qualifier;
+  const leagues = Object.values(w.leagues).filter((x) => x.type !== 'cup');
+  const qualifierIds = new Set(l.season && l.season.qualifiers ? l.season.qualifiers : []);
+  const clubs = Object.values(w.clubs).filter((c) => !(q.leagueId && w.leagues[q.leagueId] && w.leagues[q.leagueId].clubIds.includes(c.id)))
+    .sort((a, b) => b.ratings.overall - a.ratings.overall);
+  const ctx = { name: draft.name || 'Cup', short: draft.short || 'CUP' };
+  const size = l.config.size || 32;
+  const need = size - (q.leagueId ? Number(q.spots) || 0 : 0);
+  return `${header({ title: 'Edit competition', back: `#/league/${l.id}`, actions: '<button class="btn primary sm" data-act="save">Save</button>' })}
+  <div class="pad form">
+    <section class="card"><h3 class="card-title">Competition</h3>
+      <label class="field"><span>Name</span><input type="text" maxlength="60" data-field="name" value="${esc(draft.name)}"></label>
+      <label class="field"><span>Abbreviation</span><input type="text" maxlength="4" class="upper" data-field="short" value="${esc(draft.short)}"></label>
+      <p class="hint">Format: ${size} clubs · 8 groups of 4 (home & away) · two-legged Round of 16, quarter-finals and semi-finals · one-off final at a neutral ground. Level ties go to extra time and penalties.</p>
+    </section>
+    <section class="card"><h3 class="card-title">Logo</h3>${designerHTML(draft.logo, ctx, LEAGUE_LOGO_PRESETS.concat(BADGE_LIKE))}</section>
+    <section class="card"><h3 class="card-title">Qualification</h3>
+      <label class="field"><span>Qualifying league</span><select data-field="q.leagueId"><option value="">None</option>${leagues.map((x) => `<option value="${x.id}" ${q.leagueId === x.id ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></label>
+      <label class="field"><span>Places (top of the final table)</span><input type="number" min="1" max="8" data-field="q.spots" value="${esc(q.spots)}"></label>
+      <p class="hint">At the end of each league season, its top ${esc(q.spots)} go into the next ${esc(draft.name)}. Changes apply from the next draw.</p>
+    </section>
+    <section class="card"><h3 class="card-title">Continental clubs <span class="count">${draft.clubIds.length} selected · ${need} needed</span></h3>
+      <p class="hint">The strongest ${need} selected clubs fill the rest of the field each season.${qualifierIds.size ? ' League qualifiers are added automatically.' : ''}</p>
+      <div class="pick-list">${clubs.map((c) => { const on = draft.clubIds.includes(c.id); return `<label class="pick ${on ? 'on' : ''}"><input type="checkbox" data-club="${c.id}" ${on ? 'checked' : ''}>${clubBadge(c, 26)}<span><b>${esc(c.name)}</b><small>OVR ${c.ratings.overall}${c.country ? ` · ${esc(c.country)}` : ''}</small></span></label>`; }).join('')}</div>
+    </section>
+    <section class="card danger-zone"><h3 class="card-title">Manage</h3>
+      ${!l.season.finished ? `<button class="btn ghost block" data-act="restart">${ICONS.refresh} Redraw this season (wipes its results)</button>` : ''}
+      <button class="btn danger block" data-act="delete">${ICONS.trash} Delete competition</button></section>
+    <button class="btn primary block" data-act="save">Save changes</button>
+  </div>`;
+}
+
 export const actions = {
   'bd-panel'(app, el) { applyDesignerAction(draft.logo, el, LEAGUE_LOGO_PRESETS.concat(BADGE_LIKE)); app.render(); },
   'bd-seg'(app, el) { applyDesignerAction(draft.logo, el, []); app.render(); },
@@ -112,6 +152,12 @@ export const actions = {
     const id = app.route.params[0];
     const data = { name: draft.name, short: draft.short || makeShort(draft.name || 'League'), logo: draft.logo, config: draft.config };
     if (!draft.name.trim()) { app.toast('Give the league a name', 'error'); return; }
+    if (draft.type === 'cup') {
+      const q = draft.qualifier;
+      const ok = app.act((w) => { updateCup(w, id, { name: draft.name, short: draft.short, logo: draft.logo, regulars: draft.clubIds, qualifiers: q.leagueId ? [{ leagueId: q.leagueId, spots: q.spots }] : [] }); return true; }, 'Competition saved');
+      if (ok) { draft = null; draftKey = null; app.nav(`#/league/${id}`); }
+      return;
+    }
     if (!id) {
       const l = app.act((w) => createLeague(w, { ...data, clubIds: draft.clubIds }), 'League created');
       if (l) { draft = null; draftKey = null; app.nav(`#/league/${l.id}/fixtures`); }
@@ -161,6 +207,10 @@ export function onChange(app, el) {
   }
   if (applyDesignerInput(draft.logo, el)) { app.render(); return; }
   const f = el.dataset.field;
+  if (f === 'q.leagueId' || f === 'q.spots') {
+    draft.qualifier[f.slice(2)] = f === 'q.spots' ? Number(el.value) : el.value;
+    app.render(); return;
+  }
   if (f && f.startsWith('cfg.')) {
     const k = f.slice(4);
     draft.config[k] = ['upperLeagueId', 'lowerLeagueId', 'fixedSeed'].includes(k) ? (el.value || null) : Number(el.value);

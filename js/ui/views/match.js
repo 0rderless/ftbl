@@ -5,6 +5,7 @@ import { teamStrength } from '../../engine/strength.js';
 import { matchPreview, formScore } from '../../engine/match.js';
 import { FORMATIONS, STYLES } from '../../engine/tactics.js';
 import { simFixture } from '../simActions.js';
+import { roundLabel } from '../../league/cup.js';
 import { textColorOn } from '../badge.js';
 
 const ui = { tab: 'summary', side: 'home' };
@@ -19,10 +20,10 @@ export function render(app, leagueId, fixtureId) {
   const goals = (side) => r ? r.events.filter((e) => e.type === 'goal' && e.side === side) : [];
   const scorerLine = (side) => goals(side).map((e) => `<span>${esc(pname(w, e.pid))} ${e.minute}'${e.added ? '+' + e.added : ''}${e.kind === 'pen' ? ' (P)' : e.kind === 'own' ? ' (OG)' : ''}</span>`).join('');
   const board = `<section class="scoreboard" style="--hc:${h.colors.primary};--ac:${a.colors.primary}">
-    <small class="sb-meta">${esc(l.name)} · Matchday ${f.round} · ${esc(h.stadium.name)}</small>
+    <small class="sb-meta">${esc(l.name)} · ${esc(l.type === 'cup' ? roundLabel(f.round) : `Matchday ${f.round}`)} · ${esc(f.neutral ? (f.venue || 'Neutral venue') : h.stadium.name)}</small>
     <div class="sb-main">
       <a class="sb-team" href="#/club/${h.id}">${clubBadge(h, 64)}<b>${esc(h.name)}</b></a>
-      <div class="sb-score">${r ? `<span>${r.hg}</span><i>-</i><span>${r.ag}</span>` : '<em>vs</em>'}<small>${r ? 'Full time' : 'Not played'}</small></div>
+      <div class="sb-score">${r ? `<span>${r.hg}</span><i>-</i><span>${r.ag}</span>` : '<em>vs</em>'}<small>${r ? (r.et ? 'After extra time' : 'Full time') : 'Not played'}</small>${r && r.pens ? `<small class="sb-pens">${r.pens.home}–${r.pens.away} on penalties</small>` : ''}${tieLine(l, f)}</div>
       <a class="sb-team" href="#/club/${a.id}">${clubBadge(a, 64)}<b>${esc(a.name)}</b></a>
     </div>
     ${r ? `<div class="sb-scorers"><div>${scorerLine('home')}</div><div>${scorerLine('away')}</div></div>` : ''}
@@ -36,6 +37,14 @@ export function render(app, leagueId, fixtureId) {
   else body = timeline(app, f, r);
   return `${header({ title: 'Match report', back })}${board}
     <div class="pad">${segmented('tab', [['summary', 'Summary'], ['stats', 'Stats'], ['lineups', 'Line-ups']], tab)}${body}</div>`;
+}
+
+function tieLine(l, f) {
+  if (l.type !== 'cup' || !f.leg || f.leg !== 2) return '';
+  const first = l.season.fixtures.find((x) => x.stage === f.stage && x.leg === 1 && x.home === f.away && x.away === f.home);
+  if (!first || !first.result) return '';
+  if (!f.result) return `<small class="sb-pens">1st leg ${first.result.ag}–${first.result.hg}</small>`;
+  return `<small class="sb-pens">Aggregate ${f.result.hg + first.result.ag}–${f.result.ag + first.result.hg}</small>`;
 }
 
 function pname(w, pid) {
@@ -66,8 +75,16 @@ function timeline(app, f, r) {
   const htH = ht.filter((e) => e.side === 'home').length, htA = ht.filter((e) => e.side === 'away').length;
   const idx = ev.findIndex((e) => e.minute > 45);
   if (idx >= 0) rows.splice(idx, 0, `<li class="ev-divider">Half time ${htH}-${htA}</li>`); else rows.push(`<li class="ev-divider">Half time ${htH}-${htA}</li>`);
+  if (r.et) {
+    const g90 = r.events.filter((e) => e.type === 'goal' && (e.minute <= 90 || e.added));
+    const div = `<li class="ev-divider">90 minutes ${g90.filter((e) => e.side === 'home').length}-${g90.filter((e) => e.side === 'away').length} · extra time</li>`;
+    const k = rows.findIndex((html, i) => i > 0 && /class="ev-min">(9[1-9]|1[01]\d|120)'/.test(html));
+    if (k >= 0) rows.splice(k, 0, div); else rows.push(div);
+  }
   return `${motm ? `<a class="card motm" href="#/player/${motm.id}"><small>Player of the match</small><b>${esc(motm.name)}</b>${r.pl[motm.id] && r.pl[motm.id][1] != null ? `<span class="rchip r-elite">${r.pl[motm.id][1].toFixed(1)}</span>` : ''}</a>` : ''}
-    <div class="card"><ul class="timeline">${rows.join('') || '<li class="muted">A quiet game.</li>'}<li class="ev-divider">Full time ${r.hg}-${r.ag}</li></ul></div>
+    <div class="card"><ul class="timeline">${rows.join('') || '<li class="muted">A quiet game.</li>'}<li class="ev-divider">${r.et ? 'After extra time' : 'Full time'} ${r.hg}-${r.ag}</li></ul></div>
+    ${r.pens ? `<div class="card"><h3 class="card-title">Penalty shoot-out <span class="count">${r.pens.home}–${r.pens.away}</span></h3>
+      <div class="pens">${r.pens.kicks.map((k) => `<div class="pen ${k.side}"><i class="${k.scored ? 'ok' : 'miss'}">${k.scored ? '●' : '✕'}</i><span>${esc(fullName(w, k.pid))}</span></div>`).join('')}</div></div>` : ''}
     <div class="card xg-card"><small>Pre-match expected goals</small><div><b>${r.xgPre.home.toFixed(2)}</b><span>xG model</span><b>${r.xgPre.away.toFixed(2)}</b></div></div>`;
 }
 

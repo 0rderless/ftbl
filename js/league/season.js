@@ -6,6 +6,7 @@ import { STYLES } from '../engine/tactics.js';
 import { generateFixtures, roundsCount } from './fixtures.js';
 import { computeTable } from './table.js';
 import { seasonLabel } from '../data/model.js';
+import { isCup, CUP_ROUNDS, resolveKnockout, advanceCup, startNextCupSeason } from './cup.js';
 
 export function playersByClub(world) {
   const map = {};
@@ -45,6 +46,7 @@ export function seasonStarted(league) {
 }
 
 export function totalRounds(league) {
+  if (isCup(league)) return league.season ? CUP_ROUNDS : 0;
   return league.season ? roundsCount(league.season.fixtures) : 0;
 }
 
@@ -56,6 +58,7 @@ export function currentRound(league) {
 }
 
 export function isSeasonComplete(league) {
+  if (isCup(league)) return !!(league.season && league.season.finished);
   return !!league.season && league.season.fixtures.length > 0 && league.season.fixtures.every((f) => f.result);
 }
 
@@ -79,12 +82,19 @@ function ps(season, pid) {
 }
 
 export function simulateFixture(world, league, fixture, params, squads) {
-  const season = league.season;
   const clubs = world.clubs;
   const home = clubs[fixture.home], away = clubs[fixture.away];
   if (!home || !away) throw new Error('Club missing for fixture ' + fixture.id);
   const sq = squads || playersByClub(world);
-  const result = simulateMatch({
+  return simulateMatch(matchInput(world, league, fixture, params, sq));
+}
+
+/** The engine input for a fixture (also reused for extra time and penalties). */
+export function matchInput(world, league, fixture, params, sq) {
+  const season = league.season;
+  const home = world.clubs[fixture.home], away = world.clubs[fixture.away];
+  return {
+    neutral: !!fixture.neutral,
     home: { club: home, players: sq[home.id] || [] },
     away: { club: away, players: sq[away.id] || [] },
     params,
@@ -94,8 +104,7 @@ export function simulateFixture(world, league, fixture, params, squads) {
     // seed depends on the season seed and the clubs' positions in the season, not on internal ids,
     // so the same seed + same clubs + same settings always reproduce the same season
     seed: deriveSeed(season.seed, fixture.round, season.clubIds.indexOf(fixture.home), season.clubIds.indexOf(fixture.away)),
-  });
-  return result;
+  };
 }
 
 // Apply post-match effects on player condition.
@@ -144,11 +153,15 @@ export function playFixture(world, league, fixtureId, params, squads) {
   if (f.round !== cr) throw new Error(`Only matchday ${cr} fixtures can be played now`);
   const sq = squads || playersByClub(world);
   const result = simulateFixture(world, league, f, params, sq);
+  if (isCup(league)) resolveKnockout(league, f, result, matchInput(world, league, f, params, sq));
   f.result = result;
   f.playedAt = Date.now();
   applyMatchEffects(league, f, result, params, sq, world);
-  if (season.fixtures.filter((x) => x.round === cr).every((x) => x.result)) endRound(league, sq);
-  if (isSeasonComplete(league) && !season.finished) finishSeason(world, league);
+  if (season.fixtures.filter((x) => x.round === cr).every((x) => x.result)) {
+    endRound(league, sq);
+    if (isCup(league)) advanceCup(world, league);
+  }
+  if (!isCup(league) && isSeasonComplete(league) && !season.finished) finishSeason(world, league);
   return f;
 }
 
@@ -322,6 +335,7 @@ export function pyramid(world, league) {
  * moving promoted/relegated clubs between divisions.
  */
 export function startNextSeason(world, league) {
+  if (isCup(league)) { startNextCupSeason(world, league); return []; }
   const group = pyramid(world, league);
   const pending = group.filter((l) => !l.season || !l.season.finished);
   if (pending.length) {

@@ -4,6 +4,8 @@ import { computeTable } from '../../league/table.js';
 import { currentRound, totalRounds, clubForm, startSeason } from '../../league/season.js';
 import { buildDemoWorld } from '../../data/demo.js';
 import { simMatchday, nextSeason } from '../simActions.js';
+import { cupStageText } from './cup.js';
+import { roundLabel, cupClubStatus } from '../../league/cup.js';
 
 export function render(app) {
   const w = app.world;
@@ -31,10 +33,33 @@ export function render(app) {
   </div>`;
 }
 
+function cupCard(app, l) {
+  const w = app.world;
+  const s = l.season;
+  const round = currentRound(l);
+  const next = s.fixtures.filter((f) => f.round === round);
+  const ours = (s.qualifiers || []).map((id) => {
+    const c = w.clubs[id];
+    return c ? `<a href="#/club/${id}" class="nf">${clubBadge(c, 18)}<span>${esc(c.short)}</span><i>${esc(cupClubStatus(l, id))}</i></a>` : '';
+  }).join('');
+  return `<article class="card league-card ucl-card">
+    <a class="lc-head" href="#/league/${l.id}">${leagueLogo(l, 46)}
+      <div class="lc-title"><h2>${esc(l.name)}</h2><p>${esc(s.label)} · ${esc(cupStageText(l))}</p></div>${ICONS.chev}</a>
+    <div class="progress"><i style="width:${s.finished ? 100 : ((round - 1) / 13) * 100}%"></i></div>
+    ${ours ? `<div class="next-fx"><small>League qualifiers</small>${ours}</div>` : ''}
+    ${!s.finished && next.length ? `<div class="next-fx"><small>Next up</small>${next.slice(0, 4).map((f) => { const h = w.clubs[f.home], a = w.clubs[f.away]; return `<a href="#/match/${l.id}/${f.id}" class="nf">${clubBadge(h, 18)}<span>${esc(h ? h.short : '?')}</span><i>v</i><span>${esc(a ? a.short : '?')}</span>${clubBadge(a, 18)}</a>`; }).join('')}</div>` : ''}
+    <div class="lc-actions">
+      ${s.finished ? `<button class="btn primary" data-act="next" data-id="${l.id}">${ICONS.ff} Start next season</button>`
+        : `<button class="btn primary" data-act="play" data-id="${l.id}">${ICONS.play} Play ${esc(round <= 6 ? `matchday ${round}` : roundLabel(round).replace(' · ', ' '))}</button>`}
+      <a class="btn ghost" href="#/league/${l.id}/${round <= 6 && !s.finished ? 'groups' : 'bracket'}">${round <= 6 && !s.finished ? 'Groups' : 'Bracket'}</a>
+    </div></article>`;
+}
+
 function leagueCard(app, l) {
   const w = app.world;
   const s = l.season;
   if (!s) return '';
+  if (l.type === 'cup') return cupCard(app, l);
   const table = computeTable(s.clubIds, s.fixtures, l.config);
   const round = currentRound(l), total = totalRounds(l);
   const done = s.fixtures.filter((f) => f.result).length;

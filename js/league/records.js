@@ -6,6 +6,7 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 
 // Normalised seasons: completed history + current season if it has results.
 export function seasonsOf(world, league) {
+  if (league.type === 'cup') return [];
   const out = league.history.map((h) => ({
     label: h.label, complete: true, table: h.table.map((r) => ({ ...r, gd: r.gf - r.ga })), results: h.results,
     streaks: h.streaks || {}, scorers: h.topScorers || [], names: h.clubNames || {},

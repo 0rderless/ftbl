@@ -4,6 +4,7 @@ import { computeTable, zoneFor, emptyRow } from '../../league/table.js';
 import { currentRound, totalRounds, clubForm, playerStats, topList, clubStreaks, matchHighlights, seasonStarted } from '../../league/season.js';
 import { leagueRecords } from '../../league/records.js';
 import { simMatchday, simFixture, simSeason, nextSeason } from '../simActions.js';
+import { renderCup } from './cup.js';
 
 const ui = { round: {}, tableMode: 'all', statMode: 'g', teamMode: 'attack' };
 
@@ -13,6 +14,7 @@ export function render(app, id, tab = 'fixtures') {
   const w = app.world;
   const l = w.leagues[id];
   if (!l) return `${header({ title: 'League not found', back: '#/leagues' })}<div class="pad">${emptyState('This league no longer exists')}</div>`;
+  if (l.type === 'cup') return renderCup(app, l, tab, ui, statsTab);
   const s = l.season;
   const done = s ? s.fixtures.filter((f) => f.result).length : 0;
   const pct = s && s.fixtures.length ? (done / s.fixtures.length) * 100 : 0;
@@ -116,12 +118,12 @@ export function tableHTML(app, l, rows, { compact = false, highlight = null } = 
     }).join('')}</tbody></table></div>`;
 }
 
-function legend(l) {
+function legend(l, legendCup = null) {
   const c = l.config;
   const items = [];
   if (c.championsSpots) items.push(['champion', 'Champions']);
   if (c.upperLeagueId && c.promotionSpots) items.push(['promotion', 'Promotion']);
-  if (!c.upperLeagueId && c.continentalSpots) items.push(['continental', 'Continental places']);
+  if (!c.upperLeagueId && c.continentalSpots) items.push(['continental', c.continentalCupId && legendCup ? `${legendCup.name} (top ${c.continentalSpots})` : 'Continental places']);
   if (c.relegationSpots) items.push(['relegation', c.lowerLeagueId ? 'Relegation' : 'Bottom places']);
   return `<div class="legend">${items.map(([z, t]) => `<span><i class="z-dot z-${z}"></i>${t}</span>`).join('')}</div>`;
 }
@@ -130,7 +132,7 @@ function tableTab(app, l) {
   if (!l.season) return '';
   const rows = splitTable(l, ui.tableMode);
   return `${segmented('tableMode', [['all', 'Overall'], ['home', 'Home'], ['away', 'Away']], ui.tableMode)}
-    <div class="card flush">${tableHTML(app, l, rows)}</div>${legend(l)}
+    <div class="card flush">${tableHTML(app, l, rows)}</div>${legend(l, app.world.leagues[l.config.continentalCupId])}
     <p class="hint">Tiebreak: ${l.config.tiebreak === 'h2h' ? 'head-to-head, then goal difference, goals scored' : 'goal difference, goals scored, then head-to-head'}. ${l.config.pointsWin} pts win · ${l.config.pointsDraw} draw.</p>`;
 }
 
@@ -228,6 +230,7 @@ function historyTab(app, l) {
         <summary><span class="hist-season">${esc(h.label)}</span>${clubBadge(champ, 30)}<span class="hist-champ"><b>${esc(name(h, h.championId))}</b><small>${h.table[0].pts} pts · runner-up ${esc(name(h, h.runnerUpId))}</small></span></summary>
         <div class="hist-body">
           ${ts ? `<p>${ICONS.boot} Top scorer: <b>${esc(ts.name)}</b> (${ts.goals}) · ${h.topAssists[0] ? `Assists: <b>${esc(h.topAssists[0].name)}</b> (${h.topAssists[0].assists})` : ''}</p>` : ''}
+          ${l.config.continentalCupId && app.world.leagues[l.config.continentalCupId] ? `<p class="up">${ICONS.star} ${esc(app.world.leagues[l.config.continentalCupId].name)}: ${h.table.slice(0, l.config.continentalSpots).map((r) => esc(name(h, r.clubId))).join(', ')}</p>` : ''}
           ${h.promoted.length ? `<p class="up">↑ Promoted: ${h.promoted.map((id) => esc(name(h, id))).join(', ')}</p>` : ''}
           ${h.relegated.length ? `<p class="down">↓ Relegated: ${h.relegated.map((id) => esc(name(h, id))).join(', ')}</p>` : ''}
           <table class="ltable compact"><thead><tr><th>#</th><th class="c-club">Club</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GD</th><th>Pts</th></tr></thead><tbody>

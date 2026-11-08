@@ -365,3 +365,111 @@ function buildStats(rng, H, A, hg, ag, lh, la, params, events) {
       Math.round(clamp(78 + (50 - possH) * 0.35 + rng.normal(0, 3), 60, 94))],
   };
 }
+
+// ---------- knockout deciders ----------
+
+function onPitchAtEnd(result, side) {
+  const lu = result.lineups && result.lineups[side];
+  if (!lu) return [];
+  const out = new Set(lu.xi.map((s) => s.pid).filter(Boolean));
+  for (const e of result.events) {
+    if (e.side !== side) continue;
+    if (e.type === 'sub') { out.delete(e.outPid); out.add(e.pid); }
+    if (e.type === 'red') out.delete(e.pid);
+  }
+  return [...out];
+}
+
+function slotOfPlayer(result, side, pid, playersById) {
+  const s = result.lineups[side].xi.find((x) => x.pid === pid);
+  return s ? s.slot : (playersById[pid] ? playersById[pid].position : 'CM');
+}
+
+/**
+ * Play 30 minutes of extra time on top of a finished 90-minute result (mutates result).
+ * Uses the same strength model; tired legs mean fewer goals per minute.
+ */
+export function playExtraTime(o, result) {
+  const { params } = o;
+  const rng = new RNG(o.seed + '|et');
+  const homePlayers = o.home.players || [], awayPlayers = o.away.players || [];
+  const playersById = {};
+  for (const p of [...homePlayers, ...awayPlayers]) playersById[p.id] = p;
+  const H = teamStrength(o.home.club, homePlayers, o.homeState || {}, params);
+  const A = teamStrength(o.away.club, awayPlayers, o.awayState || {}, params);
+  const xg = expectedGoals(H, A, params, { neutral: !!o.neutral });
+  const k = 1 / params.dispersion;
+  const lh = xg.home * (30 / 90) * 0.85 * rng.gamma(k, 1 / k);
+  const la = xg.away * (30 / 90) * 0.85 * rng.gamma(k, 1 / k);
+  const goals = { home: rng.poisson(lh), away: rng.poisson(la) };
+  for (const side of ['home', 'away']) {
+    const pool = onPitchAtEnd(result, side);
+    for (let i = 0; i < goals[side]; i++) {
+      const minute = rng.int(91, 120);
+      let pid = null, assist = null;
+      if (pool.length) {
+        pid = rng.weighted(pool, (id) => (SCORE_W[slotOfPlayer(result, side, id, playersById)] || 0.1) * Math.pow(attr(playersById[id], 'shooting', 60) / 65, 2.2));
+        const others = pool.filter((x) => x !== pid);
+        if (others.length && rng.chance(0.7)) assist = rng.weighted(others, (id) => (ASSIST_W[slotOfPlayer(result, side, id, playersById)] || 0.3) * Math.pow(attr(playersById[id], 'passing', 60) / 65, 2));
+      }
+      result.events.push({ type: 'goal', side, minute, added: 0, pid, assist, kind: rng.chance(0.15) ? 'header' : 'open' });
+      if (pid && result.pl[pid] && result.pl[pid][1] != null) result.pl[pid][1] = Math.min(10, Math.round((result.pl[pid][1] + 1) * 10) / 10);
+    }
+    for (const pid of pool) if (result.pl[pid]) result.pl[pid][0] += 30;
+  }
+  result.hg += goals.home; result.ag += goals.away;
+  const s = result.stats;
+  const extraShots = (l) => Math.max(0, Math.round(l / 0.105 * rng.float(0.8, 1.2)));
+  s.shots = [s.shots[0] + Math.max(goals.home, extraShots(lh)), s.shots[1] + Math.max(goals.away, extraShots(la))];
+  s.shotsOnTarget = [s.shotsOnTarget[0] + goals.home + rng.int(0, 1), s.shotsOnTarget[1] + goals.away + rng.int(0, 1)];
+  s.shotsOnTarget = [Math.min(s.shots[0], s.shotsOnTarget[0]), Math.min(s.shots[1], s.shotsOnTarget[1])];
+  s.xg = [round2(s.xg[0] + lh), round2(s.xg[1] + la)];
+  result.et = true;
+  result.events.sort((a, b) => (a.minute + (a.added || 0) / 100) - (b.minute + (b.added || 0) / 100));
+  return goals;
+}
+
+/** Penalty shoot-out (mutates result with result.pens). Best of five, then sudden death. */
+export function playPenalties(o, result) {
+  const { params } = o;
+  const rng = new RNG(o.seed + '|pens');
+  const playersById = {};
+  for (const p of [...(o.home.players || []), ...(o.away.players || [])]) playersById[p.id] = p;
+  const takers = (side) => {
+    const ids = onPitchAtEnd(result, side);
+    const gk = result.lineups[side].xi.find((x) => x.slot === 'GK');
+    const sorted = ids.filter((id) => !gk || id !== gk.pid).sort((a, b) => attr(playersById[b], 'shooting', 60) - attr(playersById[a], 'shooting', 60));
+    if (gk && ids.includes(gk.pid)) sorted.push(gk.pid);
+    return sorted.length ? sorted : [null];
+  };
+  const keeper = (side) => {
+    const ids = onPitchAtEnd(result, side);
+    const gk = ids.find((id) => playersById[id] && playersById[id].position === 'GK');
+    return gk ? playersById[gk] : null;
+  };
+  const T = { home: takers('home'), away: takers('away') };
+  const K = { home: keeper('home'), away: keeper('away') };
+  const kicks = [];
+  const score = { home: 0, away: 0 };
+  const take = (side, n) => {
+    const opp = side === 'home' ? 'away' : 'home';
+    const pid = T[side][n % T[side].length];
+    const shoot = attr(playersById[pid], 'shooting', 65);
+    const gk = K[opp] ? attr(K[opp], 'goalkeeping', 70) : 60;
+    const p = clamp(0.76 + (shoot - 70) / 250 - params.goalkeeperWeight * (gk - 70) / 300, 0.55, 0.93);
+    const scored = rng.chance(p);
+    if (scored) score[side]++;
+    kicks.push({ side, pid, scored });
+  };
+  const decided = (homeLeft, awayLeft) => score.home > score.away + awayLeft || score.away > score.home + homeLeft;
+  for (let n = 0; n < 5; n++) {
+    take('home', n);
+    if (decided(4 - n, 5 - n)) break;
+    take('away', n);
+    if (decided(4 - n, 4 - n)) break;
+  }
+  let n = 5;
+  while (score.home === score.away) { take('home', n); take('away', n); n++; }
+  result.pens = { home: score.home, away: score.away, kicks };
+  return result.pens;
+}
