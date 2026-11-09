@@ -68,6 +68,16 @@ boot().catch((e) => {
   document.getElementById('app').innerHTML = `<div class="pad"><div class="card"><h3>ftbl could not start</h3><p>${String(e && e.message)}</p></div></div>`;
 });
 
+// ---- behave like a native app: no long-press menus, text selection or zooming ----
+const isTextBox = (el) => el && el.closest && el.closest('input, textarea, select, [contenteditable="true"]');
+document.addEventListener('contextmenu', (e) => { if (!isTextBox(e.target)) e.preventDefault(); });
+document.addEventListener('selectstart', (e) => { if (!isTextBox(e.target)) e.preventDefault(); });
+document.addEventListener('dragstart', (e) => { if (!isTextBox(e.target)) e.preventDefault(); });
+// iOS ignores user-scalable=no, so block pinch-zoom gestures directly
+for (const ev of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(ev, (e) => e.preventDefault(), { passive: false });
+document.addEventListener('touchmove', (e) => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
+// double-tap zoom is off via CSS touch-action: manipulation (quick repeated taps still work)
+
 // ---- updates: tell the user when a newer version has been published ----
 async function publishedVersion() {
   try {

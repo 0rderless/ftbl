@@ -838,3 +838,21 @@ button.pp { background: none; border: 0; padding: 0; color: inherit; cursor: poi
 .autoplay-bar .btn { flex: none; }
 .ap-text small { height: 15px; }
 .ap-res { height: 16px; overflow: hidden; white-space: nowrap; flex-wrap: nowrap; }
+
+/* ---------- feel like a native app, not a web page ---------- */
+html, body {
+  -webkit-touch-callout: none;   /* no long-press menu (copy / share / open link / save image) */
+  -webkit-user-select: none;     /* no text highlighting when holding */
+  user-select: none;
+  -webkit-text-size-adjust: 100%;
+  touch-action: manipulation;    /* no double-tap zoom */
+}
+a, img, svg, button { -webkit-touch-callout: none; -webkit-user-drag: none; user-drag: none; }
+img { pointer-events: none; }
+a img, button img { pointer-events: none; }
+/* text boxes still work normally */
+input, textarea, select, [contenteditable="true"] {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
