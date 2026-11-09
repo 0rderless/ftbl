@@ -436,6 +436,18 @@ async function withCloud(ctx) {
     assert.equal(await page.evaluate(() => location.hash), `#/league/${k2.id}/table`);
     step('Back button returns to wherever you were before');
 
+    // ---- past seasons switcher on a league table ----
+    await go(`#/league/${k1.id}/table`);
+    w = await world();
+    if (w.leagues[k1.id].history.length > 1 || (w.leagues[k1.id].history.length && !w.leagues[k1.id].season.finished)) {
+      await page.click('[data-act=pastBack]');
+      await page.waitForSelector('.season-step.past');
+      await page.waitForSelector('.past-notes');
+      await page.click('[data-act=pastFwd]');
+      await page.waitForSelector('.season-step:not(.past)');
+    }
+    step('past seasons switcher on tables');
+
     // ---- delete flow guards ----
     await go(`#/club/${Object.values(w.clubs).find((c) => c.name === 'Ravenmoor FC').id}/squad`);
     await page.waitForSelector('.pitch');

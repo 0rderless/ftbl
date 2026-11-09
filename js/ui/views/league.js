@@ -6,6 +6,7 @@ import { leagueRecords } from '../../league/records.js';
 import { simMatchday, simSeason, nextSeason, afterPlay } from '../simActions.js';
 import { liveSimMatch } from '../liveMatch.js';
 import { renderCup, activeWins } from './cup.js';
+import { seasonStepper, pastEntry, stepPast, pastName } from '../pastSeasons.js';
 import { winGameFlow } from '../winGame.js';
 import { setForcedWins } from '../../league/cup.js';
 
@@ -108,18 +109,18 @@ function splitTable(l, mode) {
   return list;
 }
 
-export function tableHTML(app, l, rows, { compact = false, highlight = null } = {}) {
+export function tableHTML(app, l, rows, { compact = false, highlight = null, noForm = false, names = {} } = {}) {
   const w = app.world;
   const n = rows.length;
   return `<div class="table-wrap"><table class="ltable ${compact ? 'compact' : ''}">
-    <thead><tr><th class="c-pos">#</th><th class="c-club">Club</th><th>P</th>${compact ? '' : '<th>W</th><th>D</th><th>L</th><th class="hide-xs">GF</th><th class="hide-xs">GA</th>'}<th>GD</th><th class="c-pts">Pts</th>${compact ? '' : '<th class="c-form hide-sm">Form</th>'}</tr></thead>
+    <thead><tr><th class="c-pos">#</th><th class="c-club">Club</th><th>P</th>${compact ? '' : '<th>W</th><th>D</th><th>L</th><th class="hide-xs">GF</th><th class="hide-xs">GA</th>'}<th>GD</th><th class="c-pts">Pts</th>${compact || noForm ? '' : '<th class="c-form hide-sm">Form</th>'}</tr></thead>
     <tbody>${rows.map((r) => {
       const c = w.clubs[r.clubId];
       const z = zoneFor(r.pos, n, l.config);
       return `<tr class="z-${z} ${highlight === r.clubId ? 'hl' : ''}"><td class="c-pos"><span>${r.pos}</span></td>
-        <td class="c-club"><a href="#/club/${r.clubId}">${clubBadge(c, 22)}<span class="full">${esc(c ? c.name : '?')}</span><span class="abbr">${esc(c ? c.short : '?')}</span></a></td>
+        <td class="c-club"><a href="#/club/${r.clubId}">${clubBadge(c, 22)}<span class="full">${esc(c ? c.name : names[r.clubId] || '?')}</span><span class="abbr">${esc(c ? c.short : (names[r.clubId] || '?').slice(0, 3).toUpperCase())}</span></a></td>
         <td>${r.p}</td>${compact ? '' : `<td>${r.w}</td><td>${r.d}</td><td>${r.l}</td><td class="hide-xs">${r.gf}</td><td class="hide-xs">${r.ga}</td>`}
-        <td>${r.gd > 0 ? '+' : ''}${r.gd}</td><td class="c-pts"><b>${r.pts}</b></td>${compact ? '' : `<td class="c-form hide-sm">${formPills(r.form, 5)}</td>`}</tr>`;
+        <td>${r.gd > 0 ? '+' : ''}${r.gd}</td><td class="c-pts"><b>${r.pts}</b></td>${compact || noForm ? '' : `<td class="c-form hide-sm">${formPills(r.form, 5)}</td>`}</tr>`;
     }).join('')}</tbody></table></div>`;
 }
 
@@ -133,10 +134,29 @@ function legend(l, legendCup = null) {
   return `<div class="legend">${items.map(([z, t]) => `<span><i class="z-dot z-${z}"></i>${t}</span>`).join('')}</div>`;
 }
 
+function pastTable(app, l, h) {
+  const w = app.world;
+  const rows = h.table.map((r, i) => ({ ...r, gd: r.gf - r.ga, pos: i + 1, form: [] }));
+  const names = (ids) => ids.map((id) => esc(pastName(w, h, id))).join(', ');
+  const cup = app.world.leagues[l.config.continentalCupId];
+  return `${seasonStepper(l)}
+    <div class="card flush">${tableHTML(app, l, rows, { noForm: true, names: h.clubNames })}</div>${legend(l, cup)}
+    <div class="card past-notes">
+      <p>🏆 <b>Champions:</b> ${esc(pastName(w, h, h.championId))} (${h.table[0].pts} pts)${h.runnerUpId ? ` · runners-up ${esc(pastName(w, h, h.runnerUpId))}` : ''}</p>
+      ${cup && l.config.continentalSpots ? `<p>${ICONS.star} <b>${esc(cup.name)}:</b> ${names(h.table.slice(0, l.config.continentalSpots).map((r) => r.clubId))}</p>` : ''}
+      ${h.promoted && h.promoted.length ? `<p class="up">↑ <b>Promoted:</b> ${names(h.promoted)}</p>` : ''}
+      ${h.relegated && h.relegated.length ? `<p class="down">↓ <b>${l.config.lowerLeagueId ? 'Relegated' : 'Dropped out'}:</b> ${names(h.relegated)}</p>` : ''}
+      ${h.newcomers && h.newcomers.length ? `<p class="up">★ <b>Came in:</b> ${names(h.newcomers)}</p>` : ''}
+      ${h.topScorers && h.topScorers[0] ? `<p>${ICONS.boot} <b>Top scorer:</b> ${esc(h.topScorers[0].name)} (${h.topScorers[0].goals})</p>` : ''}
+    </div>`;
+}
+
 function tableTab(app, l) {
   if (!l.season) return '';
+  const h = pastEntry(l);
+  if (h) return pastTable(app, l, h);
   const rows = splitTable(l, ui.tableMode);
-  return `${segmented('tableMode', [['all', 'Overall'], ['home', 'Home'], ['away', 'Away']], ui.tableMode)}
+  return `${seasonStepper(l)}${segmented('tableMode', [['all', 'Overall'], ['home', 'Home'], ['away', 'Away']], ui.tableMode)}
     <div class="card flush">${tableHTML(app, l, rows)}</div>${legend(l, app.world.leagues[l.config.continentalCupId])}
     <p class="hint">Tiebreak: ${l.config.tiebreak === 'h2h' ? 'head-to-head, then goal difference, goals scored' : 'goal difference, goals scored, then head-to-head'}. ${l.config.pointsWin} pts win · ${l.config.pointsDraw} draw.</p>`;
 }
@@ -256,6 +276,8 @@ function recordsTab(app, l) {
 }
 
 export const actions = {
+  pastBack(app, el) { stepPast(app.world.leagues[el.dataset.id], 1); app.render(); },
+  pastFwd(app, el) { stepPast(app.world.leagues[el.dataset.id], -1); app.render(); },
   winGame(app, el) { winGameFlow(app, el.dataset.id); },
   stopWin(app, el) {
     const id = app.route.params[0];

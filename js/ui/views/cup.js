@@ -4,6 +4,7 @@ import { ICONS, header, tabs, leagueLogo, clubBadge, emptyState } from '../compo
 import { currentRound, totalRounds, seasonStarted } from '../../league/season.js';
 import { STAGES, roundLabel, stageOfRound, groupTables, pendingQualifiers, forcedWins, isKnockout, playLabel, cupTotalRounds } from '../../league/cup.js';
 import { winLabel } from '../winGame.js';
+import { seasonStepper, pastEntry, pastName } from '../pastSeasons.js';
 
 export const CUP_TABS = [['fixtures', 'Fixtures'], ['groups', 'Groups'], ['bracket', 'Knockouts'], ['stats', 'Stats'], ['history', 'History']];
 export const KO_TABS = [['fixtures', 'Fixtures'], ['bracket', 'Rounds'], ['stats', 'Stats'], ['history', 'History']];
@@ -109,7 +110,54 @@ export function activeWins(app, l) {
   return `<div class="card win-active">${ICONS.trophy}<div>${ids.map((id) => { const c = app.world.clubs[id]; return `<span>${clubBadge(c, 18)} <b>${esc(c ? c.name : '?')}</b> wins ${esc(winLabel(fw[id]))} <button class="link-btn" data-act="stopWin" data-id="${id}">Stop</button></span>`; }).join('')}</div></div>`;
 }
 
+function pastGroups(app, l, h) {
+  const w = app.world;
+  const qual = new Set(h.qualifiers || []);
+  if (!h.groups || !h.groups.length) return emptyState('No group tables saved for this season');
+  return `<div class="groups-grid">${h.groups.map((g) => `<div class="card flush group-card">
+    <div class="rank-head">Group ${g.name} · final</div>
+    <table class="ltable compact"><thead><tr><th>#</th><th class="c-club">Club</th><th>P</th><th>GD</th><th>Pts</th></tr></thead><tbody>
+    ${g.table.map((r, i) => `<tr class="${i < 2 ? 'z-promotion' : 'z-'} ${qual.has(r.clubId) ? 'hl' : ''}"><td class="c-pos"><span>${i + 1}</span></td>
+      <td class="c-club"><a href="#/club/${r.clubId}">${clubBadge(w.clubs[r.clubId], 20)}<span class="full show">${esc(pastName(w, h, r.clubId))}</span></a></td><td>${r.p}</td><td>${r.gf - r.ga > 0 ? '+' : ''}${r.gf - r.ga}</td><td class="c-pts"><b>${r.pts}</b></td></tr>`).join('')}
+    </tbody></table></div>`).join('')}</div>
+    <div class="legend"><span><i class="z-dot z-promotion"></i>Reached the Round of 16</span><span><i class="z-dot hl-dot"></i>League qualifiers</span></div>`;
+}
+
+/** Past knockout results from a history entry, grouped by round, latest round first. */
+function pastTies(app, l, h) {
+  const w = app.world;
+  const ties = h.ties || [];
+  if (!ties.length) return emptyState('No knockout results saved for this season');
+  const num = (st) => (st === 'final' ? 999 : st === 'qf' ? 997 : st === 'sf' ? 998 : st === 'r16' ? 996 : parseInt(String(st).replace(/\D/g, ''), 10) || 0);
+  const stages = [...new Set(ties.map((t) => t.stage))].sort((a, b) => num(b) - num(a));
+  const koMax = Math.max(...ties.filter((t) => t.stage !== 'final').map((t) => num(t.stage)));
+  const nameOf = (st) => {
+    if (st === 'final') return 'Final';
+    const fixed = { r16: 'Round of 16', qf: 'Quarter-finals', sf: 'Semi-finals' }[st];
+    if (fixed) return fixed;
+    const n = num(st);
+    return n === koMax ? 'Semi-finals' : n === koMax - 1 ? 'Quarter-finals' : `Round ${n}`;
+  };
+  const champ = h.championId;
+  return `<div class="card past-notes"><p>🏆 <b>Winners:</b> ${esc(pastName(w, h, champ))}${h.final ? ` · final ${h.final.hg}–${h.final.ag}${h.final.pens ? ` (${h.final.pens[0]}–${h.final.pens[1]} pens)` : h.final.et ? ' aet' : ''}` : ''}</p>
+    ${h.topScorers && h.topScorers[0] ? `<p>${ICONS.boot} <b>Top scorer:</b> ${esc(h.topScorers[0].name)} (${h.topScorers[0].goals})</p>` : ''}</div>
+    ${stages.map((st, idx) => `<details class="ko-round" ${idx < 2 ? 'open' : ''}><summary><span>${esc(nameOf(st))}</span><small>${ties.filter((t) => t.stage === st).length} ties</small></summary><div class="card flush">
+      ${ties.filter((t) => t.stage === st).map((t) => {
+        if (!t.b) return `<div class="tie done"><span class="tie-team win">${clubBadge(w.clubs[t.a], 22)}<span>${esc(pastName(w, h, t.a))}</span><b>–</b></span><small>Bye</small></div>`;
+        const [ga, gb] = t.agg || ['–', '–'];
+        return `<div class="tie done"><span class="tie-team ${t.winner === t.a ? 'win' : 'out'}">${clubBadge(w.clubs[t.a], 22)}<span>${esc(pastName(w, h, t.a))}</span><b>${ga}</b></span>
+          <span class="tie-team ${t.winner === t.b ? 'win' : 'out'}">${clubBadge(w.clubs[t.b], 22)}<span>${esc(pastName(w, h, t.b))}</span><b>${gb}</b></span>
+          ${t.pens ? `<small>${esc(pastName(w, h, t.winner))} won ${Math.max(...t.pens)}–${Math.min(...t.pens)} on penalties</small>` : ''}</div>`;
+      }).join('')}</div></details>`).join('')}`;
+}
+
 function groupsTab(app, l) {
+  const h = pastEntry(l);
+  if (h) return seasonStepper(l) + pastGroups(app, l, h);
+  return seasonStepper(l) + groupsTabNow(app, l);
+}
+
+function groupsTabNow(app, l) {
   const w = app.world;
   const qual = new Set(l.season.qualifiers || []);
   return `<div class="groups-grid">${groupTables(l).map((g) => `<div class="card flush group-card">
@@ -149,7 +197,13 @@ function knockoutRounds(app, l) {
 }
 
 function bracketTab(app, l) {
-  if (isKnockout(l)) return knockoutRounds(app, l);
+  const h = pastEntry(l);
+  if (h) return seasonStepper(l) + pastTies(app, l, h);
+  if (isKnockout(l)) return seasonStepper(l) + knockoutRounds(app, l);
+  return seasonStepper(l) + bracketTabNow(app, l);
+}
+
+function bracketTabNow(app, l) {
   const w = app.world;
   const s = l.season;
   if (!s.ties.length) return emptyState('Knockouts not drawn yet', 'The Round of 16 is drawn when the group stage ends: group winners face runners-up from other groups.');

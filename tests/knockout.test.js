@@ -255,3 +255,22 @@ test('Division 2 plays automatically with Kronliga; bottom 3 drop out for the be
   assert.equal(daf.season.clubIds.length, 100);
   for (const id of dropped) assert.ok(!k.clubIds.includes(id) && !div.clubIds.includes(id) && daf.season.clubIds.includes(id), 'dropped clubs still in the cup as non-league');
 });
+
+test('past seasons switcher: steps back through the last 3 earlier seasons, never repeating the current one', async () => {
+  const { pastEntry, stepPast, pastIndex } = await import('../js/ui/pastSeasons.js');
+  const { w, k } = kronliga(12);
+  for (let i = 0; i < 5; i++) { playSeason(w, k, P); if (i < 4) startNextSeason(w, k); }
+  // current season (5th) finished and already archived
+  assert.equal(pastEntry(k), null);
+  stepPast(k, 1);
+  assert.equal(pastEntry(k).label, '2029/30', 'one back = the season before the current one');
+  stepPast(k, 1); stepPast(k, 1); stepPast(k, 1);
+  assert.equal(pastIndex(k), 3, 'limited to 3 seasons back');
+  assert.equal(pastEntry(k).label, '2027/28');
+  stepPast(k, -3);
+  assert.equal(pastEntry(k), null);
+  // while a season is in progress, one back = last finished season
+  startNextSeason(w, k);
+  stepPast(k, 1);
+  assert.equal(pastEntry(k).label, '2030/31');
+});
