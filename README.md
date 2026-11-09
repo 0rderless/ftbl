@@ -17,6 +17,8 @@ To protect your data:
 - When copies differ, the most recently saved one wins, and the other is kept as a backup.
 - Import, restore and reset each keep a backup first.
 
+**Restart game** (at the bottom of the Leagues tab, and under **Sim → Data & app → Reset**) wipes every table, past season, trophy, record, award and player stat. Every competition then starts again in the current real-world season, for example 2026/27. Clubs, players, line-ups, badges, settings and current league memberships are kept, and a backup is saved first.
+
 Backups are listed under **Sim → Data & app → Backups** and can be restored from there. **Export backup** also downloads a JSON file.
 
 ## Features

@@ -7,6 +7,7 @@ import { generateSquad } from '../../data/generate.js';
 import { buildDemoWorld } from '../../data/demo.js';
 import { startSeason } from '../../league/season.js';
 import { APP_VERSION, BUILT_AT } from '../../version.js';
+import { restartGameFlow } from '../restartGame.js';
 
 const ui = { lab: null, running: false };
 
@@ -120,7 +121,9 @@ function dataTab(app) {
     </div>
     <div class="card danger-zone">
       <h3 class="card-title">Reset</h3>
-      <p class="hint">Deletes every club, player, league and setting (a backup is kept first).</p>
+      <p class="hint"><b>Restart game</b> wipes all trophies, tables, records, awards and stats and starts every competition again in the current season. Clubs, players and line-ups are kept.</p>
+      <button class="btn block" data-act="restartGame">↺ Restart game</button>
+      <p class="hint" style="margin-top:14px">Delete all data removes every club, player, league and setting (a backup is kept first).</p>
       <button class="btn danger block" data-act="reset">${ICONS.trash} Delete all data</button>
     </div>
     <p class="hint center">ftbl · version ${esc(APP_VERSION.replace('ftbl-', ''))} · built ${esc(new Date(BUILT_AT).toLocaleString())}</p>`;
@@ -128,7 +131,7 @@ function dataTab(app) {
 
 function backupRow(b, where) {
   const when = new Date(Number(b.at || b.key)).toLocaleString();
-  const reasons = { 'before-cloud-download': 'Before cloud download', 'before-reset': 'Before reset', 'before-import': 'Before import', 'before-restore': 'Before restore', 'replaced-by-newer-device': 'Replaced by newer device', replaced: 'Replaced by another device', manual: 'Manual backup', 'before-upgrade': 'Before the 2026/27 restart' };
+  const reasons = { 'before-cloud-download': 'Before cloud download', 'before-reset': 'Before reset', 'before-import': 'Before import', 'before-restore': 'Before restore', 'replaced-by-newer-device': 'Replaced by newer device', replaced: 'Replaced by another device', manual: 'Manual backup', 'before-upgrade': 'Before the 2026/27 restart', 'before-restart': 'Before Restart game' };
   return `<div class="backup-row"><div><b>${esc(when)}</b><small>${esc(reasons[b.reason] || b.reason || '')}${b.clubs != null ? ` · ${b.clubs} clubs · ${b.leagues} leagues` : ''} · ${Math.round((b.size || 0) / 1024)} KB · ${where}</small></div>
     <button class="btn sm" data-act="restore" data-where="${where}" data-key="${esc(b.key)}">Restore</button></div>`;
 }
@@ -211,6 +214,7 @@ export const actions = {
     });
     app.toast(`Added ${added} demo clubs`, 'ok');
   },
+  restartGame(app) { return restartGameFlow(app); },
   async reset(app) {
     if (!(await app.confirm('This deletes every club, player and league on this device and in the cloud. A backup copy is kept and can be restored from Backups.', { ok: 'Delete everything', danger: true }))) return;
     await app.store.reset();

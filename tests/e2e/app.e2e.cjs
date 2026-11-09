@@ -536,6 +536,31 @@ async function withCloud(ctx) {
     assert.ok(w.leagues[k2.id].season.fixtures.some((f) => f.result), 'results persisted after reload');
     step('second reload keeps everything');
 
+    // ---- Restart game: trophies/stats wiped, clubs and players kept ----
+    w = await world();
+    const rClubs = Object.keys(w.clubs).length, rPlayers = Object.keys(w.players).length;
+    assert.ok(Object.values(w.leagues).some((l) => l.history.length), 'there is history to wipe');
+    await go('#/leagues');
+    await page.click('[data-act=restartGame]');
+    await page.click('.sheet [data-sheet="true"]');
+    await page.waitForFunction(() => Object.values(window.ftbl.store.world.leagues).every((l) => !l.history.length));
+    w = await world();
+    const now = new Date();
+    const y = now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1;
+    const want = `${y}/${String((y + 1) % 100).padStart(2, '0')}`;
+    for (const l of Object.values(w.leagues)) assert.equal(l.season.label, want, `${l.name} restarted in ${want}`);
+    assert.equal(Object.keys(w.clubs).length, rClubs, 'clubs kept');
+    assert.equal(Object.keys(w.players).length, rPlayers, 'players kept');
+    assert.ok(Object.values(w.clubs).every((c) => !c.honours.length), 'trophies wiped');
+    assert.ok(Object.values(w.players).every((p) => !p.career.apps && !(p.awards || []).length), 'stats wiped');
+    await flush();
+    await page.reload();
+    await page.waitForSelector('.tabbar');
+    w = await world();
+    assert.ok(Object.values(w.leagues).every((l) => !l.history.length && l.season.label === want), 'restart is saved');
+    step(`Restart game: every competition back to ${want}, clubs and players kept`);
+
+
     assert.deepEqual(errors, [], 'no runtime errors');
     step('no runtime errors');
     console.log('\nE2E PASSED');

@@ -886,3 +886,4 @@ input, textarea, select, [contenteditable="true"] {
 .as-rig { font-size: 13px; color: var(--muted); margin: -4px 0 10px; }
 .ap-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; margin: 0 -18px; padding: 0 18px; overscroll-behavior: contain; }
 .ap-scroll .ap-list { max-height: none; }
+.restart-btn { margin-top: 18px; }

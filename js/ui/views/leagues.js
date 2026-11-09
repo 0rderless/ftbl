@@ -4,6 +4,7 @@ import { currentRound, totalRounds } from '../../league/season.js';
 import { computeTable } from '../../league/table.js';
 import { roundLabel } from '../../league/cup.js';
 import { openAutoPlay, isAutoRunning, autoMode } from '../autoPlay.js';
+import { restartGameFlow } from '../restartGame.js';
 
 export function render(app) {
   const w = app.world;
@@ -26,7 +27,7 @@ export function render(app) {
       </div>${ICONS.chev}</a>`;
   }).join('') : emptyState('No leagues yet', 'Create a competition, pick its clubs and generate fixtures automatically.', '<a class="btn primary" href="#/leagues/new">New league</a>');
   return `${header({ title: 'Leagues', actions: `<button class="icon-btn" data-act="auto" aria-label="Auto play">${ICONS.ff}</button><a class="icon-btn accent" href="#/leagues/new" aria-label="New league">${ICONS.plus}</a>` })}
-    <div class="pad">${leagues.length ? `<button class="btn block autoplay-btn" data-act="auto">${ICONS.ff} ${isAutoRunning() ? `${autoMode() === 'sim' ? 'Auto sim' : 'Auto play'} is running — tap to stop` : 'Auto play / Auto sim'}</button>` : ''}${body}</div>`;
+    <div class="pad">${leagues.length ? `<button class="btn block autoplay-btn" data-act="auto">${ICONS.ff} ${isAutoRunning() ? `${autoMode() === 'sim' ? 'Auto sim' : 'Auto play'} is running — tap to stop` : 'Auto play / Auto sim'}</button>` : ''}${body}${leagues.length ? '<button class="btn ghost block restart-btn" data-act="restartGame">↺ Restart game (start again this season)</button>' : ''}</div>`;
 }
 
-export const actions = { auto(app) { openAutoPlay(app); } };
+export const actions = { auto(app) { openAutoPlay(app); }, restartGame(app) { return restartGameFlow(app); } };

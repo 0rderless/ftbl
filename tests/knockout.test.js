@@ -305,3 +305,57 @@ test('Auto rules: "always win" wins everything; a blacklisted team loses but is 
   assert.equal(riggedWinner(k, f, { rig }).id, worst);
   assert.equal(riggedWinner(k, f, { rig: { win: [worst, best], lose: [] } }), null);
 });
+
+test('Restart game: wipes trophies, tables, records and stats; keeps clubs, players and line-ups; every competition back to this season', async () => {
+  const { createDivision2 } = await import('../js/data/geko.js');
+  const { createContinentalCup, isCup } = await import('../js/league/cup.js');
+  const { competitionLeaderboard } = await import('../js/league/records.js');
+  const { restartWorld, currentSeasonYear } = await import('../js/league/restart.js');
+  assert.equal(currentSeasonYear(new Date(2026, 10, 9)), 2026, 'November 2026 → 2026/27');
+  assert.equal(currentSeasonYear(new Date(2027, 2, 1)), 2026, 'March 2027 → still 2026/27');
+  assert.equal(currentSeasonYear(new Date(2027, 7, 1)), 2027, 'August 2027 → 2027/28');
+  const { w, k } = kronliga(20);
+  const daf = createDaffersCup(w, k);
+  playSeason(w, daf, P); playSeason(w, k, P);
+  const div = createDivision2(w, k, daf, competitionLeaderboard(w, daf));
+  w.settings.ui.migrations = { 'champions-league-v1': 1, 'real-clubs-v1': 1, 'fresh-start-2026-v1': 1, 'cup-season-label-v1': 1, 'kronliga-20-daffers-v1': 1, 'division-2-v1': 1 };
+  runMigrations(w);
+  startNextSeason(w, k); startNextSeason(w, daf);
+  const { cup } = createContinentalCup(w, { qualifiers: [{ leagueId: k.id, spots: 3 }], startYear: 2027 });
+  for (let i = 0; i < 2; i++) {
+    playSeason(w, k, P); playSeason(w, daf, P); playSeason(w, cup, P);
+    startNextSeason(w, k); startNextSeason(w, daf);
+    const { startNextCupSeason } = await import('../js/league/cup.js');
+    startNextCupSeason(w, cup);
+  }
+  playRound(w, k, P);
+  assert.ok(Object.values(w.clubs).some((c) => c.honours.length) && Object.values(w.players).some((p) => p.career.apps));
+  const clubsBefore = JSON.stringify(Object.keys(w.clubs).sort());
+  const playersBefore = JSON.stringify(Object.values(w.players).map((p) => [p.id, p.clubId, p.overall, p.number]).sort());
+  const kMembers = k.clubIds.slice(), dMembers = div.clubIds.slice();
+  const lastTop = k.history[k.history.length - 1].table.map((r) => r.clubId).filter((id) => k.clubIds.includes(id)).slice(0, 3);
+
+  const out = restartWorld(w, 2026);
+  assert.equal(out.label, '2026/27');
+  assert.equal(JSON.stringify(Object.keys(w.clubs).sort()), clubsBefore, 'no club removed or added');
+  assert.equal(JSON.stringify(Object.values(w.players).map((p) => [p.id, p.clubId, p.overall, p.number]).sort()), playersBefore, 'players untouched');
+  for (const c of Object.values(w.clubs)) assert.deepEqual(c.honours, []);
+  for (const p of Object.values(w.players)) { assert.deepEqual(p.awards, []); assert.equal(p.career.apps + p.career.goals + p.career.seasons, 0); }
+  for (const l of Object.values(w.leagues)) {
+    assert.deepEqual(l.history, [], `${l.name} history wiped`);
+    assert.equal(l.season.number, 1);
+    assert.equal(l.season.label, '2026/27', `${l.name} back to 2026/27`);
+    assert.ok(!l.season.fixtures.some((f) => f.result), `${l.name} nothing played`);
+  }
+  assert.deepEqual(k.clubIds, kMembers, 'Kronliga keeps its current clubs');
+  assert.deepEqual(div.clubIds, dMembers, 'Division 2 keeps its current clubs');
+  assert.equal(cup.season.clubIds.length, 32);
+  assert.deepEqual(cup.season.qualifiers, lastTop, 'Kronliga top 3 from the last table are in the Champions League');
+  assert.equal(daf.season.clubIds.length, 100);
+  // it all plays on normally afterwards
+  playSeason(w, k, P); playSeason(w, daf, P); playSeason(w, cup, P);
+  assert.ok(k.season.finished && div.season.finished && daf.season.finished && cup.season.finished);
+  startNextSeason(w, k);
+  assert.equal(k.season.label, '2027/28'); assert.equal(div.season.label, '2027/28');
+  assert.ok(Object.values(w.leagues).filter((l) => !isCup(l)).every((l) => l.clubIds.length === 20));
+});
