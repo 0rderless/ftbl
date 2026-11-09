@@ -1,5 +1,5 @@
 // Offline support: network-first for app files (so updates arrive), cache fallback when offline.
-const VERSION = 'ftbl-aa1f2326eb';
+const VERSION = 'ftbl-dc7af56a82';
 const ASSETS = [
   './',
   './css/app.css',
@@ -58,6 +58,7 @@ const ASSETS = [
   './js/ui/views/records.js',
   './js/ui/views/settings.js',
   './js/ui/winGame.js',
+  './js/version.js',
   './manifest.webmanifest',
 ];
 

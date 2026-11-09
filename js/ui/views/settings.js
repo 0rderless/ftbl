@@ -6,6 +6,7 @@ import { newClub } from '../../data/model.js';
 import { generateSquad } from '../../data/generate.js';
 import { buildDemoWorld } from '../../data/demo.js';
 import { startSeason } from '../../league/season.js';
+import { APP_VERSION, BUILT_AT } from '../../version.js';
 
 const ui = { lab: null, running: false };
 
@@ -122,7 +123,7 @@ function dataTab(app) {
       <p class="hint">Deletes every club, player, league and setting (a backup is kept first).</p>
       <button class="btn danger block" data-act="reset">${ICONS.trash} Delete all data</button>
     </div>
-    <p class="hint center">ftbl v1.0</p>`;
+    <p class="hint center">ftbl · version ${esc(APP_VERSION.replace('ftbl-', ''))} · built ${esc(new Date(BUILT_AT).toLocaleString())}</p>`;
 }
 
 function backupRow(b, where) {

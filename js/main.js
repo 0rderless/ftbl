@@ -5,6 +5,7 @@ import { createApp } from './ui/app.js';
 import { CloudStore, SyncManager, firebaseDb, withTimeout } from './core/cloud.js';
 import { firebaseConfig, CLOUD_ROOT } from './core/firebaseConfig.js';
 import { toast } from './ui/dom.js';
+import { APP_VERSION } from './version.js';
 import { runMigrations, pendingMigrations, needsBackup } from './core/migrations.js';
 
 const memory = {
@@ -66,6 +67,41 @@ boot().catch((e) => {
   console.error(e);
   document.getElementById('app').innerHTML = `<div class="pad"><div class="card"><h3>ftbl could not start</h3><p>${String(e && e.message)}</p></div></div>`;
 });
+
+// ---- updates: tell the user when a newer version has been published ----
+async function publishedVersion() {
+  try {
+    const t = await (await fetch(`./sw.js?check=${Date.now()}`, { cache: 'no-store' })).text();
+    const m = t.match(/const VERSION = '([^']+)'/);
+    return m ? m[1] : null;
+  } catch { return null; }
+}
+let updateShown = false;
+async function checkForUpdate() {
+  if (updateShown || !navigator.onLine) return;
+  const v = await publishedVersion();
+  if (!v || v === APP_VERSION) return;
+  updateShown = true;
+  const bar = document.createElement('div');
+  bar.className = 'update-bar';
+  bar.innerHTML = '<span>New version of ftbl ready</span><button class="btn primary sm">Update</button>';
+  bar.querySelector('button').addEventListener('click', async () => {
+    bar.querySelector('button').textContent = 'Updating…';
+    try {
+      const { store, sync } = window.ftbl || {};
+      if (store) await store.flush();
+      if (sync && sync.ready) await Promise.race([sync.push(), new Promise((r) => setTimeout(r, 4000))]).catch(() => {});
+      const reg = navigator.serviceWorker && await navigator.serviceWorker.getRegistration();
+      if (reg) await reg.update().catch(() => {});
+      if (window.caches) for (const k of await caches.keys()) await caches.delete(k);
+    } finally { location.reload(); }
+  });
+  document.body.appendChild(bar);
+  requestAnimationFrame(() => bar.classList.add('show'));
+}
+setTimeout(checkForUpdate, 4000);
+setInterval(checkForUpdate, 10 * 60 * 1000);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkForUpdate(); });
 
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   window.addEventListener('load', () => { navigator.serviceWorker.register('./sw.js').catch(() => {}); });
