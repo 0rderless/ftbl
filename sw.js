@@ -1,4 +1,5 @@
-// Offline support: network-first for app files (so updates arrive), cache fallback when offline.
+// Offline support: network-first for app files (always revalidated, so updates arrive on the next open),
+// cache fallback when offline.
 const VERSION = 'ftbl-dc7af56a82';
 const ASSETS = [
   './',
@@ -63,7 +64,7 @@ const ASSETS = [
 ];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(VERSION).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(VERSION).then((c) => c.addAll(ASSETS.map((u) => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (e) => {
@@ -78,7 +79,9 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(req.url);
   if (url.origin === location.origin) {
     e.respondWith(
-      Promise.race([fetch(req), timeout(4000)]).then((res) => {
+      // 'no-cache' always checks GitHub for a newer file (a quick 304 if nothing changed), so a new
+      // version shows up on the next open instead of after the host's 10-minute cache expires
+      Promise.race([fetch(req.url, { cache: 'no-cache', credentials: 'same-origin' }), timeout(6000)]).then((res) => {
         if (res && res.ok) { const copy = res.clone(); caches.open(VERSION).then((c) => c.put(req, copy)); }
         return res;
       }).catch(() => caches.match(req, { ignoreSearch: true }).then((r) => r || caches.match('./')))
