@@ -865,3 +865,24 @@ input, textarea, select, [contenteditable="true"] {
 .as-log li { padding: 7px 0; border-bottom: 1px solid var(--line); font-size: 13.5px; font-weight: 600; }
 .md-overlay.autosim { background: rgba(5, 5, 12, .94); }
 .as-panel { background: #15151f; }
+
+/* Auto: Always win / Blacklist */
+.rig { border: 1px solid var(--line2); border-radius: 12px; padding: 10px 12px; margin: 4px 0 12px; background: var(--card2); }
+.rig summary { font-weight: 700; font-size: 14px; cursor: pointer; list-style: none; display: flex; align-items: center; gap: 8px; }
+.rig summary::-webkit-details-marker { display: none; }
+.rig summary::after { content: '▾'; margin-left: auto; color: var(--muted); transition: transform .2s; }
+.rig[open] summary::after { transform: rotate(180deg); }
+.rig-box { margin-top: 12px; }
+.rig-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.rig-head b { font-size: 13.5px; }
+.rig-head small { color: var(--muted); font-size: 12px; }
+.rig-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; min-height: 20px; }
+.rig-lose .rig-chip { background: var(--bad, #c0392b); border-color: var(--bad, #c0392b); }
+.rig-input { margin: 0 !important; }
+.rig-found .pick-row { padding: 7px 4px; }
+.rig-note { margin: 10px 0 0; font-size: 12px; }
+.ap-text b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ap-rig { font-weight: 500; color: var(--muted); }
+.as-rig { font-size: 13px; color: var(--muted); margin: -4px 0 10px; }
+.ap-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; margin: 0 -18px; padding: 0 18px; overscroll-behavior: contain; }
+.ap-scroll .ap-list { max-height: none; }

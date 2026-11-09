@@ -115,6 +115,42 @@ export function forcedWinResult(world, league, fixture, params, sq, clubId) {
   return simulateMatch(input);
 }
 
+/**
+ * Who must win this match, if anyone:
+ *  - Win game (season.forceWins) and auto "always win" (params.rig.win): that club wins
+ *    (if both clubs have it, the match is played normally)
+ *  - auto "blacklist" (params.rig.lose): that club loses — but in a league it starts winning
+ *    whenever it is within 2 places or 3 points of the relegation zone, so it never goes down
+ */
+export function riggedWinner(league, f, params) {
+  const fw = (league.season && league.season.forceWins) || {};
+  const rig = params && params.rig;
+  const winIds = [f.home, f.away].filter((id) => fw[id] || (rig && rig.win && rig.win.includes(id)));
+  if (winIds.length === 1) return { id: winIds[0], source: fw[winIds[0]] ? 'win' : 'auto' };
+  if (winIds.length === 2) return null;
+  if (rig && rig.lose) {
+    const bad = [f.home, f.away].filter((id) => rig.lose.includes(id));
+    if (bad.length === 1) {
+      const b = bad[0];
+      if (!isCup(league) && inRelegationDanger(league, b)) return { id: b, source: 'rescue' };
+      return { id: b === f.home ? f.away : f.home, source: 'blacklist' };
+    }
+  }
+  return null;
+}
+
+/** Within 2 places or 3 points of the relegation / drop-out zone. */
+export function inRelegationDanger(league, clubId) {
+  const R = league.config.relegationSpots || 0;
+  if (!R) return false;
+  const t = computeTable(league.season.clubIds, league.season.fixtures, league.config);
+  const n = t.length;
+  const row = t.find((r) => r.clubId === clubId);
+  if (!row || n <= R) return false;
+  const firstDown = t[n - R];
+  return row.pos >= n - R - 1 || row.pts - firstDown.pts <= 3;
+}
+
 /** The engine input for a fixture (also reused for extra time and penalties). */
 export function matchInput(world, league, fixture, params, sq) {
   const season = league.season;
@@ -179,11 +215,11 @@ export function playFixture(world, league, fixtureId, params, squads) {
   if (f.round !== cr) throw new Error(`Only matchday ${cr} fixtures can be played now`);
   const sq = squads || playersByClub(world);
   const fw = season.forceWins || {};
-  const forced = [f.home, f.away].filter((id) => fw[id]);
-  const result = forced.length === 1 ? forcedWinResult(world, league, f, params, sq, forced[0]) : simulateFixture(world, league, f, params, sq);
-  if (forced.length === 1) {
-    result.forced = forced[0];
-    if (fw[forced[0]] > 0 && --fw[forced[0]] === 0) delete fw[forced[0]];
+  const rig = riggedWinner(league, f, params);
+  const result = rig ? forcedWinResult(world, league, f, params, sq, rig.id) : simulateFixture(world, league, f, params, sq);
+  if (rig) {
+    result.forced = rig.id;
+    if (rig.source === 'win' && fw[rig.id] > 0 && --fw[rig.id] === 0) delete fw[rig.id];
   }
   if (isCup(league)) resolveKnockout(league, f, result, matchInput(world, league, f, params, sq));
   f.result = result;

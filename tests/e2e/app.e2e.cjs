@@ -488,13 +488,41 @@ async function withCloud(ctx) {
     const simIds = await page.$$eval('[data-ap]:not([disabled])', (els) => els.map((e) => e.dataset.ap));
     for (const id of simIds) await page.check(`[data-ap="${id}"]`);
     await page.click('[data-simn="1"]');
+    // team rules: one club always wins, another is blacklisted
+    w = await world();
+    const rigL = simIds.map((id) => w.leagues[id]).find((l) => l.type !== 'cup' && l.season && !l.season.finished);
+    let winner = null, loser = null, playedBefore = new Set();
+    if (rigL) {
+      const ids = rigL.season.clubIds;
+      winner = w.clubs[ids[ids.length - 1]];
+      loser = w.clubs[ids[0]];
+      playedBefore = new Set(rigL.season.fixtures.filter((f) => f.result).map((f) => f.id));
+      if (!(await page.$eval('.rig', (d) => d.open))) await page.click('.rig summary');
+      await page.fill('[data-rig="win"] [data-rig-input]', winner.name.slice(0, 5));
+      await page.click(`[data-rig="win"] [data-rig-add="${winner.id}"]`);
+      await page.waitForSelector(`[data-rig="win"] [data-rig-del="${winner.id}"]`);
+      await page.fill('[data-rig="lose"] [data-rig-input]', loser.name.slice(0, 5));
+      await page.click(`[data-rig="lose"] [data-rig-add="${loser.id}"]`);
+      await page.waitForSelector(`[data-rig="lose"] [data-rig-del="${loser.id}"]`);
+    }
     await page.click('.sheet [data-sheet="start"]');
     await page.waitForSelector('[data-as-done]:not([hidden])', { timeout: 60000 });
     w = await world();
     for (const id of simIds) assert.ok(w.leagues[id].season.finished, `${w.leagues[id].name} finished by Auto sim`);
+    if (rigL) {
+      assert.ok(await page.$('[data-as-rig]'), 'sim panel shows the team rules');
+      const fresh = w.leagues[rigL.id].season.fixtures.filter((f) => f.result && !playedBefore.has(f.id) && (f.home === winner.id || f.away === winner.id));
+      assert.ok(fresh.length > 0, 'the always-win club played');
+      for (const f of fresh) {
+        const won = f.home === winner.id ? f.result.hg > f.result.ag : f.result.ag > f.result.hg;
+        assert.ok(won, `${winner.name} won ${f.result.hg}-${f.result.ag}`);
+      }
+      const ap = w.settings.ui.autoPlay;
+      assert.deepEqual([ap.win, ap.lose], [[winner.id], [loser.id]], 'team rules remembered');
+    }
     await page.click('[data-as-done]');
     await page.waitForSelector('#autosim-overlay', { state: 'detached' });
-    step('Auto sim: simulated the rest of the season for every selected competition');
+    step('Auto sim: simulated the rest of the season for every selected competition (with Always win / Blacklist)');
 
     // ---- delete flow guards ----
     await go(`#/club/${Object.values(w.clubs).find((c) => c.name === 'Ravenmoor FC').id}/squad`);

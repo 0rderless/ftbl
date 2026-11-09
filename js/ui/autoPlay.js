@@ -6,7 +6,7 @@
 import { esc, sheet } from './dom.js';
 import { ICONS, leagueLogo, clubBadge } from './components.js';
 import { playRound, playSeason, currentRound, startNextSeason, pyramidPending, followers } from '../league/season.js';
-import { roundLabel, isCup, startNextCupSeason } from '../league/cup.js';
+import { roundLabel, isCup, startNextCupSeason, searchClubs } from '../league/cup.js';
 
 export const SPEEDS = [['slow', 'Slow', 2500], ['normal', 'Normal', 1200], ['fast', 'Fast', 450], ['max', 'Turbo', 120]];
 const SIM_SEASONS = [[1, '1'], [2, '2'], [5, '5'], [10, '10']];
@@ -14,6 +14,20 @@ const SIM_SEASONS = [[1, '1'], [2, '2'], [5, '5'], [10, '10']];
 const run = { active: false, mode: 'play', timer: null, app: null, sel: [], speed: 'normal', seasons: false, idx: 0, matchdays: 0, log: [], lastRender: 0, lastSave: 0 };
 
 export function isAutoRunning() { return run.active; }
+
+/** Match settings for auto runs: the normal settings plus the Always win / Blacklist rules. */
+function params(app) {
+  const p = app.params();
+  return run.rig ? { ...p, rig: run.rig } : p;
+}
+function rigFrom(win, lose) {
+  return (win && win.length) || (lose && lose.length) ? { win: (win || []).slice(), lose: (lose || []).slice() } : null;
+}
+function rigSummary(w) {
+  if (!run.rig) return '';
+  const names = (ids) => ids.map((id) => w.clubs[id]).filter(Boolean).map((c) => c.short).join(', ');
+  return [run.rig.win.length ? `🎯 ${names(run.rig.win)}` : '', run.rig.lose.length ? `⛔ ${names(run.rig.lose)}` : ''].filter(Boolean).join('  ');
+}
 export function autoMode() { return run.active ? run.mode : null; }
 
 function prefs(app) {
@@ -34,7 +48,16 @@ export async function openAutoPlay(app, startMode) {
   const speed = p.speed || 'normal';
   const mode = startMode || p.mode || 'play';
   const simN = p.simSeasons || 1;
+  const rig = { win: (p.win || []).filter((id) => w.clubs[id]), lose: (p.lose || []).filter((id) => w.clubs[id] && !(p.win || []).includes(id)) };
+  const allClubs = Object.values(w.clubs).sort((a, b) => b.ratings.overall - a.ratings.overall);
+  const rigBox = (kind, title, help) => `<div class="rig-box rig-${kind}" data-rig="${kind}">
+      <div class="rig-head"><b>${title}</b><small>${help}</small></div>
+      <div class="rig-chips" data-rig-chips></div>
+      <input type="search" class="rig-input" data-rig-input placeholder="Type a team to add…" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="${title}: add team">
+      <div class="rig-found" data-rig-found></div>
+    </div>`;
   const out = await sheet(`<h3 class="sheet-title">${ICONS.ff} Auto</h3>
+    <div class="ap-scroll">
     <div class="seg ap-mode"><button type="button" class="seg-btn ${mode === 'play' ? 'on' : ''}" data-mode="play">Auto play</button><button type="button" class="seg-btn ${mode === 'sim' ? 'on' : ''}" data-mode="sim">Auto sim</button></div>
     <p class="sheet-text" data-mode-help></p>
     <div class="ap-list">${comps.map((l) => {
@@ -48,6 +71,12 @@ export async function openAutoPlay(app, startMode) {
     </div>
     <div data-sim-opts>
       <div class="field"><span>How many seasons (1 = just finish this one)</span><div class="seg">${SIM_SEASONS.map(([n, label]) => `<button type="button" class="seg-btn ${n === simN ? 'on' : ''}" data-simn="${n}">${label}</button>`).join('')}</div></div>
+    </div>
+    <details class="rig" ${rig.win.length || rig.lose.length ? 'open' : ''}><summary>Team rules${rig.win.length || rig.lose.length ? ` <span class="tag gold">${rig.win.length + rig.lose.length} on</span>` : ''}</summary>
+      ${rigBox('win', '🎯 Always win', 'wins every match')}
+      ${rigBox('lose', '⛔ Blacklist', 'loses on purpose, but never gets relegated')}
+      <p class="sheet-text rig-note">Only used during Auto play and Auto sim. If two Always win teams meet, it's a normal match.</p>
+    </details>
     </div>
     <div class="sheet-actions"><button class="btn ghost" data-sheet="cancel">Cancel</button><button class="btn primary" data-sheet="start">${ICONS.play} Start</button></div>`, {
     onMount(el) {
@@ -65,6 +94,44 @@ export async function openAutoPlay(app, startMode) {
         el.querySelectorAll(`[${attr}]`).forEach((x) => x.classList.toggle('on', x === b));
       }));
       pick('data-speed'); pick('data-simn');
+      // Always win / Blacklist pickers
+      const drawRig = () => el.querySelectorAll('[data-rig]').forEach((box) => {
+        const ids = rig[box.dataset.rig];
+        box.querySelector('[data-rig-chips]').innerHTML = ids.length
+          ? ids.map((id) => w.clubs[id]).filter(Boolean).map((c) => `<button type="button" class="chip on rig-chip" data-rig-del="${c.id}">${clubBadge(c, 16)} ${esc(c.short)} ✕</button>`).join('')
+          : '<small class="muted">No teams</small>';
+      });
+      el.querySelectorAll('[data-rig]').forEach((box) => {
+        const kind = box.dataset.rig;
+        const other = kind === 'win' ? 'lose' : 'win';
+        const input = box.querySelector('[data-rig-input]');
+        const found = box.querySelector('[data-rig-found]');
+        const drawFound = () => {
+          if (!input.value.trim()) { found.innerHTML = ''; return; }
+          const hits = searchClubs(allClubs, input.value, 5);
+          found.innerHTML = hits.map((c) => `<button type="button" class="pick-row" data-rig-add="${c.id}">${clubBadge(c, 24)}<span class="pr-name"><b>${esc(c.name)}</b><small>${rig[kind].includes(c.id) ? 'already added' : rig[other].includes(c.id) ? `move from ${other === 'win' ? 'Always win' : 'Blacklist'}` : `${c.ratings.overall} overall`}</small></span>${ICONS.plus}</button>`).join('') || '<p class="muted pad-s">No team matches those letters.</p>';
+        };
+        input.addEventListener('input', drawFound);
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') { e.preventDefault(); const first = found.querySelector('[data-rig-add]'); if (first) first.click(); }
+        });
+        found.addEventListener('click', (e) => {
+          const b = e.target.closest('[data-rig-add]');
+          if (!b) return;
+          const id = b.dataset.rigAdd;
+          rig[other] = rig[other].filter((x) => x !== id);
+          if (!rig[kind].includes(id)) rig[kind].push(id);
+          input.value = ''; found.innerHTML = '';
+          drawRig();
+        });
+        box.querySelector('[data-rig-chips]').addEventListener('click', (e) => {
+          const b = e.target.closest('[data-rig-del]');
+          if (!b) return;
+          rig[kind] = rig[kind].filter((x) => x !== b.dataset.rigDel);
+          drawRig();
+        });
+      });
+      drawRig();
       el.querySelector('[data-sheet="start"]').addEventListener('click', () => {
         run.pending = {
           mode: el.querySelector('[data-mode].on').dataset.mode,
@@ -72,6 +139,8 @@ export async function openAutoPlay(app, startMode) {
           speed: el.querySelector('[data-speed].on').dataset.speed,
           seasons: el.querySelector('[data-ap-seasons]').checked,
           simSeasons: Number(el.querySelector('[data-simn].on').dataset.simn),
+          win: rig.win.slice(),
+          lose: rig.lose.slice(),
         };
       }, true);
     },
@@ -81,8 +150,9 @@ export async function openAutoPlay(app, startMode) {
   run.pending = null;
   if (!choice.sel.length) { app.toast('Pick at least one competition', 'error'); return; }
   app.act((world) => { world.settings.ui.autoPlay = { ...choice }; });
-  if (choice.mode === 'sim') startAutoSim(app, choice.sel, choice.simSeasons);
-  else startAuto(app, choice.sel, choice.speed, choice.seasons);
+  const rules = rigFrom(choice.win, choice.lose);
+  if (choice.mode === 'sim') startAutoSim(app, choice.sel, choice.simSeasons, rules);
+  else startAuto(app, choice.sel, choice.speed, choice.seasons, rules);
 }
 
 // ---------- shared: keep the app responsive while running ----------
@@ -113,7 +183,7 @@ function quietly(app, fn, every = 1000) {
 function autoNextSeason(app, l) {
   if (isCup(l)) { quietly(app, (world) => startNextCupSeason(world, world.leagues[l.id])); return; }
   quietly(app, (world) => {
-    for (const p of pyramidPending(world, world.leagues[l.id])) playSeason(world, world.leagues[p.id], app.params());
+    for (const p of pyramidPending(world, world.leagues[l.id])) playSeason(world, world.leagues[p.id], params(app));
     startNextSeason(world, world.leagues[l.id]);
   });
 }
@@ -131,8 +201,8 @@ function rollOver(app, comps) {
 }
 
 // ---------- Auto play ----------
-export function startAuto(app, sel, speed = 'normal', seasons = false) {
-  Object.assign(run, { active: true, mode: 'play', app, sel: sel.slice(), speed, seasons, idx: 0, matchdays: 0, log: [] });
+export function startAuto(app, sel, speed = 'normal', seasons = false, rig = null) {
+  Object.assign(run, { active: true, mode: 'play', app, sel: sel.slice(), speed, seasons, rig, idx: 0, matchdays: 0, log: [] });
   beginBatch(app);
   renderBar();
   schedule(200);
@@ -182,7 +252,7 @@ function tick() {
     return;
   }
   const round = currentRound(chosen);
-  const played = quietly(app, (world) => playRound(world, world.leagues[chosen.id], app.params()));
+  const played = quietly(app, (world) => playRound(world, world.leagues[chosen.id], params(app)));
   if (!played) { stopAuto('Auto play stopped'); return; }
   run.matchdays++;
   const l = w.leagues[chosen.id];
@@ -222,12 +292,13 @@ function renderBar() {
     };
     // pointerdown reacts instantly, even while a matchday is being simulated
     bar.addEventListener('pointerdown', onTap);
-    bar.innerHTML = `<div class="ap-live"><i class="ap-dot"></i><div class="ap-text"><b>Auto playing</b><small data-ap-last>Starting…</small><div class="ap-res" data-ap-res></div></div></div>
+    bar.innerHTML = `<div class="ap-live"><i class="ap-dot"></i><div class="ap-text"><b>Auto playing<span class="ap-rig" data-ap-rig></span></b><small data-ap-last>Starting…</small><div class="ap-res" data-ap-res></div></div></div>
       <button class="btn sm" data-ap-act="speed"></button>
       <button class="btn sm danger" data-ap-act="stop">Stop</button>`;
     requestAnimationFrame(() => bar.classList.add('show'));
     document.body.classList.add('autoplaying');
   }
+  bar.querySelector('[data-ap-rig]').textContent = run.rig ? ` · ${rigSummary(w)}` : '';
   const last = run.log[0];
   bar.querySelector('[data-ap-last]').textContent = last ? last.text : 'Starting…';
   bar.querySelector('[data-ap-res]').innerHTML = last && last.results ? last.results.map(([h, hg, ag, a]) => `<span>${clubBadge(w.clubs[h], 14)}<b>${hg}-${ag}</b>${clubBadge(w.clubs[a], 14)}</span>`).join('') : '';
@@ -237,8 +308,8 @@ function renderBar() {
 // ---------- Auto sim ----------
 const frame = () => new Promise((r) => setTimeout(r, 0));
 
-export async function startAutoSim(app, sel, seasons = 1) {
-  Object.assign(run, { active: true, mode: 'sim', app, sel: sel.slice(), matchdays: 0, log: [] });
+export async function startAutoSim(app, sel, seasons = 1, rig = null) {
+  Object.assign(run, { active: true, mode: 'sim', app, sel: sel.slice(), rig, matchdays: 0, log: [] });
   beginBatch(app);
   const ov = document.createElement('div');
   ov.id = 'autosim-overlay';
@@ -246,6 +317,7 @@ export async function startAutoSim(app, sel, seasons = 1) {
   ov.innerHTML = `<div class="md-panel as-panel">
     <div class="md-head">${ICONS.ff}<div><small>Auto sim</small><h2 data-as-title>Simulating…</h2></div></div>
     <p class="as-now" data-as-now>Starting</p>
+    ${run.rig ? `<p class="as-rig" data-as-rig>${esc(rigSummary(app.world))}</p>` : ''}
     <div class="lab-progress"><i data-as-bar></i></div>
     <ul class="as-log" data-as-log></ul>
     <button class="btn danger block" data-as-stop>Stop</button>
@@ -284,7 +356,7 @@ export async function startAutoSim(app, sel, seasons = 1) {
           const r = currentRound(cur);
           $('[data-as-now]').textContent = `${cur.name} ${cur.season.label} · ${cur.type === 'cup' ? roundLabel(r, cur) : `matchday ${r}`}`;
           // the panel covers the screen, so don't redraw underneath until the end
-          quietly(app, (world) => playRound(world, world.leagues[l.id], app.params()), Infinity);
+          quietly(app, (world) => playRound(world, world.leagues[l.id], params(app)), Infinity);
           doneRounds++;
           $('[data-as-bar]').style.width = `${Math.min(100, (doneRounds / totalRounds) * 100)}%`;
           if (w().leagues[l.id].season.finished) {

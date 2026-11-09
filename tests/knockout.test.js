@@ -274,3 +274,34 @@ test('past seasons switcher: steps back through the last 3 earlier seasons, neve
   stepPast(k, 1);
   assert.equal(pastEntry(k).label, '2030/31');
 });
+
+test('Auto rules: "always win" wins everything; a blacklisted team loses but is never relegated, letting others catch up', async () => {
+  const { riggedWinner } = await import('../js/league/season.js');
+  const { computeTable } = await import('../js/league/table.js');
+  const { w, k } = kronliga(20);
+  k.config.relegationSpots = 3;
+  const byRating = k.clubIds.slice().sort((a, b) => w.clubs[b].ratings.overall - w.clubs[a].ratings.overall);
+  const best = byRating[0], worst = byRating[byRating.length - 1];
+  const rig = { win: [worst], lose: [best] };
+  const params = { ...P, rig };
+  playSeason(w, k, params);
+  const table = k.history[0].table;
+  const pos = (id) => table.findIndex((r) => r.clubId === id) + 1;
+  const games = (id) => k.season.fixtures.filter((f) => f.home === id || f.away === id);
+  const won = (id, f) => (f.home === id ? f.result.hg > f.result.ag : f.result.ag > f.result.hg);
+  // always win: every single match, champions
+  assert.ok(games(worst).every((f) => won(worst, f)));
+  assert.equal(pos(worst), 1);
+  // blacklisted: loses a lot, but never finishes in the relegation zone
+  const bestWins = games(best).filter((f) => won(best, f)).length;
+  assert.ok(bestWins < 20, `blacklisted best club won only ${bestWins}`);
+  assert.ok(pos(best) <= 20 - 3, `not relegated (finished ${pos(best)})`);
+  assert.ok(pos(best) >= 12, `played badly (finished ${pos(best)})`);
+  // at no point after round 5 was it ever inside the relegation zone for long: check final safety margin rule
+  const t = computeTable(k.season.clubIds, k.season.fixtures, k.config);
+  assert.ok(t.findIndex((r) => r.clubId === best) < 17);
+  // both rules on the same match: always-win beats blacklist; two always-win clubs play normally
+  const f = { home: worst, away: best };
+  assert.equal(riggedWinner(k, f, { rig }).id, worst);
+  assert.equal(riggedWinner(k, f, { rig: { win: [worst, best], lose: [] } }), null);
+});
