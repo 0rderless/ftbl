@@ -856,3 +856,12 @@ input, textarea, select, [contenteditable="true"] {
   user-select: text;
   -webkit-touch-callout: default;
 }
+/* auto sim */
+.ap-mode { margin: 6px 0 8px; }
+.as-panel { text-align: left; }
+.as-panel .md-head svg { width: 28px; height: 28px; color: var(--accent2); }
+.as-now { color: var(--muted); font-size: 13px; margin: 4px 0 8px; min-height: 18px; }
+.as-log { list-style: none; margin: 10px 0; padding: 0; max-height: 40vh; overflow-y: auto; }
+.as-log li { padding: 7px 0; border-bottom: 1px solid var(--line); font-size: 13.5px; font-weight: 600; }
+.md-overlay.autosim { background: rgba(5, 5, 12, .94); }
+.as-panel { background: #15151f; }

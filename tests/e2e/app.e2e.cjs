@@ -480,6 +480,22 @@ async function withCloud(ctx) {
     assert.equal(w.leagues[target].season.fixtures.filter((f) => f.result).length, tAfter, 'stopped means stopped');
     step('Auto play: runs only the selected competitions, keeps going while browsing, Stop stops it');
 
+    // ---- Auto sim: finish this season of the selected competitions ----
+    await go('#/');
+    await page.click('[data-act=auto]');
+    await page.waitForSelector('.ap-list');
+    await page.click('[data-mode="sim"]');
+    const simIds = await page.$$eval('[data-ap]:not([disabled])', (els) => els.map((e) => e.dataset.ap));
+    for (const id of simIds) await page.check(`[data-ap="${id}"]`);
+    await page.click('[data-simn="1"]');
+    await page.click('.sheet [data-sheet="start"]');
+    await page.waitForSelector('[data-as-done]:not([hidden])', { timeout: 60000 });
+    w = await world();
+    for (const id of simIds) assert.ok(w.leagues[id].season.finished, `${w.leagues[id].name} finished by Auto sim`);
+    await page.click('[data-as-done]');
+    await page.waitForSelector('#autosim-overlay', { state: 'detached' });
+    step('Auto sim: simulated the rest of the season for every selected competition');
+
     // ---- delete flow guards ----
     await go(`#/club/${Object.values(w.clubs).find((c) => c.name === 'Ravenmoor FC').id}/squad`);
     await page.waitForSelector('.pitch');

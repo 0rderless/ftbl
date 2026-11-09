@@ -1,66 +1,139 @@
-// Auto play: keeps playing matchdays across the competitions you pick, until you stop it.
+// Auto play / Auto sim.
+//  - Auto play: keeps playing matchdays one at a time across the competitions you pick, until you stop it.
+//  - Auto sim: simulates whole seasons of the competitions you pick (1, 2, 5 or 10), with a progress bar.
+// Both keep the phone responsive: the screen is only refreshed about once a second, saving to the
+// phone/cloud is batched, and there is always a gap between matchdays so taps (Stop) get through.
 import { esc, sheet } from './dom.js';
 import { ICONS, leagueLogo, clubBadge } from './components.js';
 import { playRound, playSeason, currentRound, startNextSeason, pyramidPending, followers } from '../league/season.js';
 import { roundLabel, isCup, startNextCupSeason } from '../league/cup.js';
 
-export const SPEEDS = [['slow', 'Slow', 2500], ['normal', 'Normal', 1200], ['fast', 'Fast', 450], ['max', 'Turbo', 60]];
+export const SPEEDS = [['slow', 'Slow', 2500], ['normal', 'Normal', 1200], ['fast', 'Fast', 450], ['max', 'Turbo', 120]];
+const SIM_SEASONS = [[1, '1'], [2, '2'], [5, '5'], [10, '10']];
 
-const run = { active: false, timer: null, app: null, sel: [], speed: 'normal', seasons: false, idx: 0, matchdays: 0, log: [] };
+const run = { active: false, mode: 'play', timer: null, app: null, sel: [], speed: 'normal', seasons: false, idx: 0, matchdays: 0, log: [], lastRender: 0, lastSave: 0 };
 
 export function isAutoRunning() { return run.active; }
+export function autoMode() { return run.active ? run.mode : null; }
 
 function prefs(app) {
   return (app.world.settings.ui && app.world.settings.ui.autoPlay) || {};
 }
 
-/** Competitions to offer: everything except leagues that already play along with another one. */
 function choices(w) {
   return Object.values(w.leagues).sort((a, b) => (a.type === 'cup') - (b.type === 'cup') || (a.format === 'knockout') - (b.format === 'knockout') || a.createdAt - b.createdAt);
 }
 
-export async function openAutoPlay(app) {
-  if (run.active) { stopAuto('Auto play stopped'); return; }
+export async function openAutoPlay(app, startMode) {
+  if (run.active) { stopAuto('Stopped'); return; }
   const w = app.world;
   const p = prefs(app);
   const comps = choices(w);
   const leaderOf = (l) => l.config && l.config.followLeagueId && w.leagues[l.config.followLeagueId];
   const saved = new Set(p.sel || comps.filter((l) => !leaderOf(l)).map((l) => l.id));
   const speed = p.speed || 'normal';
-  const out = await sheet(`<h3 class="sheet-title">${ICONS.ff} Auto play</h3>
-    <p class="sheet-text">Plays matchdays one after another in the competitions you pick. You can keep using the app and stop any time.</p>
+  const mode = startMode || p.mode || 'play';
+  const simN = p.simSeasons || 1;
+  const out = await sheet(`<h3 class="sheet-title">${ICONS.ff} Auto</h3>
+    <div class="seg ap-mode"><button type="button" class="seg-btn ${mode === 'play' ? 'on' : ''}" data-mode="play">Auto play</button><button type="button" class="seg-btn ${mode === 'sim' ? 'on' : ''}" data-mode="sim">Auto sim</button></div>
+    <p class="sheet-text" data-mode-help></p>
     <div class="ap-list">${comps.map((l) => {
       const leader = leaderOf(l);
       return `<label class="ap-item ${leader ? 'follow' : ''}"><input type="checkbox" data-ap="${l.id}" ${saved.has(l.id) && !leader ? 'checked' : ''} ${leader ? 'disabled' : ''}>
         ${leagueLogo(l, 30)}<span><b>${esc(l.name)}</b><small>${leader ? `plays automatically with ${esc(leader.name)}` : l.season ? `${esc(l.season.label)} · ${l.season.finished ? 'season complete' : esc(l.type === 'cup' ? roundLabel(currentRound(l), l) : `matchday ${currentRound(l)}`)}` : ''}</small></span></label>`;
     }).join('')}</div>
-    <div class="field"><span>Speed</span><div class="seg ap-speed">${SPEEDS.map(([k, label]) => `<button type="button" class="seg-btn ${k === speed ? 'on' : ''}" data-speed="${k}">${label}</button>`).join('')}</div></div>
-    <label class="toggle-inline"><input type="checkbox" data-ap-seasons ${p.seasons ? 'checked' : ''}> Keep going into new seasons</label>
+    <div data-play-opts>
+      <div class="field"><span>Speed</span><div class="seg ap-speed">${SPEEDS.map(([k, label]) => `<button type="button" class="seg-btn ${k === speed ? 'on' : ''}" data-speed="${k}">${label}</button>`).join('')}</div></div>
+      <label class="toggle-inline"><input type="checkbox" data-ap-seasons ${p.seasons ? 'checked' : ''}> Keep going into new seasons</label>
+    </div>
+    <div data-sim-opts>
+      <div class="field"><span>How many seasons (1 = just finish this one)</span><div class="seg">${SIM_SEASONS.map(([n, label]) => `<button type="button" class="seg-btn ${n === simN ? 'on' : ''}" data-simn="${n}">${label}</button>`).join('')}</div></div>
+    </div>
     <div class="sheet-actions"><button class="btn ghost" data-sheet="cancel">Cancel</button><button class="btn primary" data-sheet="start">${ICONS.play} Start</button></div>`, {
     onMount(el) {
-      el.querySelectorAll('[data-speed]').forEach((b) => b.addEventListener('click', () => {
-        el.querySelectorAll('[data-speed]').forEach((x) => x.classList.toggle('on', x === b));
+      const setMode = (m) => {
+        el.querySelectorAll('[data-mode]').forEach((x) => x.classList.toggle('on', x.dataset.mode === m));
+        el.querySelector('[data-play-opts]').hidden = m !== 'play';
+        el.querySelector('[data-sim-opts]').hidden = m !== 'sim';
+        el.querySelector('[data-mode-help]').textContent = m === 'play'
+          ? 'Plays matchdays one after another in the competitions you pick. Keep using the app and stop any time.'
+          : 'Simulates the rest of the season straight away for every competition you pick — or several seasons in a row.';
+      };
+      setMode(mode);
+      el.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', () => setMode(b.dataset.mode)));
+      const pick = (attr) => el.querySelectorAll(`[${attr}]`).forEach((b) => b.addEventListener('click', () => {
+        el.querySelectorAll(`[${attr}]`).forEach((x) => x.classList.toggle('on', x === b));
       }));
-      // capture choices just before the sheet closes
+      pick('data-speed'); pick('data-simn');
       el.querySelector('[data-sheet="start"]').addEventListener('click', () => {
         run.pending = {
+          mode: el.querySelector('[data-mode].on').dataset.mode,
           sel: [...el.querySelectorAll('[data-ap]:checked')].map((x) => x.dataset.ap),
-          speed: (el.querySelector('[data-speed].on') || {}).dataset ? el.querySelector('[data-speed].on').dataset.speed : 'normal',
+          speed: el.querySelector('[data-speed].on').dataset.speed,
           seasons: el.querySelector('[data-ap-seasons]').checked,
+          simSeasons: Number(el.querySelector('[data-simn].on').dataset.simn),
         };
       }, true);
     },
   });
   if (out !== 'start' || !run.pending) return;
-  const { sel, speed: sp, seasons } = run.pending;
+  const choice = run.pending;
   run.pending = null;
-  if (!sel.length) { app.toast('Pick at least one competition', 'error'); return; }
-  app.act((world) => { world.settings.ui.autoPlay = { sel, speed: sp, seasons }; });
-  startAuto(app, sel, sp, seasons);
+  if (!choice.sel.length) { app.toast('Pick at least one competition', 'error'); return; }
+  app.act((world) => { world.settings.ui.autoPlay = { ...choice }; });
+  if (choice.mode === 'sim') startAutoSim(app, choice.sel, choice.simSeasons);
+  else startAuto(app, choice.sel, choice.speed, choice.seasons);
 }
 
+// ---------- shared: keep the app responsive while running ----------
+function beginBatch(app) {
+  run.saveDebounce = app.store.debounceMs;
+  app.store.debounceMs = 15000; // save in batches, not after every matchday
+  if (app.sync) { run.pushDebounce = app.sync.debounceMs; app.sync.debounceMs = 60000; }
+  run.lastRender = performance.now();
+  run.lastSave = performance.now();
+}
+function endBatch(app) {
+  if (run.saveDebounce != null) app.store.debounceMs = run.saveDebounce;
+  if (app.sync && run.pushDebounce != null) app.sync.debounceMs = run.pushDebounce;
+  app.store.flush().then(() => { if (app.sync && app.sync.ready) app.sync.push().catch(() => {}); });
+}
+/** Run a world change without redrawing the screen; redraw at most every `every` ms. */
+function quietly(app, fn, every = 1000) {
+  app.holdRender = (app.holdRender || 0) + 1;
+  let out;
+  try { out = app.act(fn); } finally { app.holdRender--; }
+  const now = performance.now();
+  if (now - run.lastRender > every) { run.lastRender = now; app.render({ silent: true }); }
+  if (run.mode === 'play' && now - run.lastSave > 20000) { run.lastSave = now; app.store.flush(); }
+  return out;
+}
+
+/** Start the next season of a finished competition without any prompts. */
+function autoNextSeason(app, l) {
+  if (isCup(l)) { quietly(app, (world) => startNextCupSeason(world, world.leagues[l.id])); return; }
+  quietly(app, (world) => {
+    for (const p of pyramidPending(world, world.leagues[l.id])) playSeason(world, world.leagues[p.id], app.params());
+    startNextSeason(world, world.leagues[l.id]);
+  });
+}
+
+/** When every selected competition is finished: roll them all into the next season. Returns how many started. */
+function rollOver(app, comps) {
+  const w = app.world;
+  let started = 0;
+  for (const l of comps.slice().sort((a, b) => isCup(a) - isCup(b))) {
+    const cur = w.leagues[l.id];
+    if (!cur || !cur.season || !cur.season.finished) continue; // already rolled over with a linked league
+    try { autoNextSeason(app, cur); started++; } catch (e) { console.warn(e); }
+  }
+  return started;
+}
+
+// ---------- Auto play ----------
 export function startAuto(app, sel, speed = 'normal', seasons = false) {
-  Object.assign(run, { active: true, app, sel: sel.slice(), speed, seasons, idx: 0, matchdays: 0, log: [] });
+  Object.assign(run, { active: true, mode: 'play', app, sel: sel.slice(), speed, seasons, idx: 0, matchdays: 0, log: [] });
+  beginBatch(app);
   renderBar();
   schedule(200);
 }
@@ -71,9 +144,14 @@ export function stopAuto(message) {
   clearTimeout(run.timer);
   const bar = document.getElementById('autoplay-bar');
   if (bar) { bar.classList.remove('show'); setTimeout(() => bar.remove(), 300); }
+  const ov = document.getElementById('autosim-overlay');
+  if (ov) { ov.classList.remove('show'); setTimeout(() => ov.remove(), 300); }
   document.body.classList.remove('autoplaying');
-  if (message && run.app) run.app.toast(message, 'ok');
-  if (run.app) run.app.render({ silent: true });
+  if (run.app) {
+    endBatch(run.app);
+    if (message) run.app.toast(message, 'ok');
+    run.app.render({ silent: true });
+  }
 }
 
 function schedule(ms) {
@@ -83,23 +161,13 @@ function schedule(ms) {
 
 function delay() { return (SPEEDS.find((s) => s[0] === run.speed) || SPEEDS[1])[2]; }
 
-/** Start the next season of a finished competition without any prompts. */
-function autoNextSeason(app, l) {
-  const w = app.world;
-  if (isCup(l)) { app.act((world) => startNextCupSeason(world, world.leagues[l.id])); return; }
-  app.act((world) => {
-    for (const p of pyramidPending(world, world.leagues[l.id])) playSeason(world, world.leagues[p.id], app.params());
-    startNextSeason(world, world.leagues[l.id]);
-  });
-}
-
 function tick() {
-  if (!run.active) return;
+  if (!run.active || run.mode !== 'play') return;
+  const t0 = performance.now();
   const app = run.app;
   const w = app.world;
   const comps = run.sel.map((id) => w.leagues[id]).filter(Boolean);
   if (!comps.length) { stopAuto('Auto play stopped'); return; }
-  // round-robin over the selected competitions that still have a matchday to play
   let chosen = null;
   for (let i = 0; i < comps.length; i++) {
     const l = comps[(run.idx + i) % comps.length];
@@ -107,39 +175,33 @@ function tick() {
   }
   if (!chosen) {
     if (!run.seasons) { stopAuto('Auto play finished: the selected competitions are complete'); return; }
-    // all done: start new seasons (leagues first so cups can take their qualifiers)
-    const finished = comps.filter((l) => l.season && l.season.finished).sort((a, b) => isCup(a) - isCup(b));
-    let started = 0;
-    for (const l of finished) {
-      if (!w.leagues[l.id].season.finished) continue; // already rolled over with a linked league
-      try { autoNextSeason(app, l); started++; } catch (e) { console.warn(e); }
-    }
-    if (!started) { stopAuto('Auto play stopped: nothing left to play'); return; }
+    if (!rollOver(app, comps)) { stopAuto('Auto play stopped: nothing left to play'); return; }
     run.log.unshift({ text: 'New seasons started' });
     renderBar();
-    schedule(delay());
+    schedule(Math.max(delay(), (performance.now() - t0) * 2));
     return;
   }
   const round = currentRound(chosen);
-  const played = app.act((world) => playRound(world, world.leagues[chosen.id], app.params()));
+  const played = quietly(app, (world) => playRound(world, world.leagues[chosen.id], app.params()));
   if (!played) { stopAuto('Auto play stopped'); return; }
   run.matchdays++;
   const l = w.leagues[chosen.id];
   const label = l.type === 'cup' ? roundLabel(round, l) : `Matchday ${round}`;
-  const extra = l.type === 'cup' ? 0 : followers(w, l).length;
-  run.log.unshift({ league: l.id, text: `${l.name} · ${label}${extra ? ' (+ ' + followers(w, l).map((f) => f.name).join(', ') + ')' : ''}`, results: played.slice(0, 3).map((f) => [f.home, f.result.hg, f.result.ag, f.away]) });
+  const fl = l.type === 'cup' ? [] : followers(w, l);
+  run.log.unshift({ text: `${l.name} · ${label}${fl.length ? ` (+ ${fl.map((f) => f.name).join(', ')})` : ''}`, results: played.slice(0, 3).map((f) => [f.home, f.result.hg, f.result.ag, f.away]) });
   if (l.season.finished) {
     const h = l.history[l.history.length - 1];
     const c = h && w.clubs[h.championId];
-    run.log.unshift({ league: l.id, text: `🏆 ${c ? c.name : 'Champions'} win the ${l.name} ${h ? h.label : ''}`, big: true });
+    run.log.unshift({ text: `🏆 ${c ? c.name : 'Champions'} win the ${l.name} ${h ? h.label : ''}` });
   }
   run.log = run.log.slice(0, 6);
   renderBar();
-  schedule(delay());
+  // always leave the phone at least as much free time as the matchday took, so taps get through
+  schedule(Math.max(delay(), (performance.now() - t0) * 2, 80));
 }
 
 function renderBar() {
-  if (!run.active) return;
+  if (!run.active || run.mode !== 'play') return;
   const w = run.app.world;
   let bar = document.getElementById('autoplay-bar');
   if (!bar) {
@@ -147,27 +209,104 @@ function renderBar() {
     bar.id = 'autoplay-bar';
     bar.className = 'autoplay-bar';
     document.body.appendChild(bar);
-    bar.addEventListener('click', (e) => {
+    const onTap = (e) => {
       const b = e.target.closest('[data-ap-act]');
       if (!b) return;
+      e.preventDefault();
       if (b.dataset.apAct === 'stop') stopAuto('Auto play stopped');
       if (b.dataset.apAct === 'speed') {
         const i = SPEEDS.findIndex((s) => s[0] === run.speed);
         run.speed = SPEEDS[(i + 1) % SPEEDS.length][0];
         renderBar();
       }
-    });
-    requestAnimationFrame(() => bar.classList.add('show'));
-    document.body.classList.add('autoplaying');
-  }
-  if (!bar.querySelector('.ap-live')) {
-    // build once; later updates only touch the text so the buttons stay tappable
+    };
+    // pointerdown reacts instantly, even while a matchday is being simulated
+    bar.addEventListener('pointerdown', onTap);
     bar.innerHTML = `<div class="ap-live"><i class="ap-dot"></i><div class="ap-text"><b>Auto playing</b><small data-ap-last>Starting…</small><div class="ap-res" data-ap-res></div></div></div>
       <button class="btn sm" data-ap-act="speed"></button>
       <button class="btn sm danger" data-ap-act="stop">Stop</button>`;
+    requestAnimationFrame(() => bar.classList.add('show'));
+    document.body.classList.add('autoplaying');
   }
   const last = run.log[0];
   bar.querySelector('[data-ap-last]').textContent = last ? last.text : 'Starting…';
   bar.querySelector('[data-ap-res]').innerHTML = last && last.results ? last.results.map(([h, hg, ag, a]) => `<span>${clubBadge(w.clubs[h], 14)}<b>${hg}-${ag}</b>${clubBadge(w.clubs[a], 14)}</span>`).join('') : '';
   bar.querySelector('[data-ap-act="speed"]').textContent = (SPEEDS.find((s) => s[0] === run.speed) || SPEEDS[1])[1];
+}
+
+// ---------- Auto sim ----------
+const frame = () => new Promise((r) => setTimeout(r, 0));
+
+export async function startAutoSim(app, sel, seasons = 1) {
+  Object.assign(run, { active: true, mode: 'sim', app, sel: sel.slice(), matchdays: 0, log: [] });
+  beginBatch(app);
+  const ov = document.createElement('div');
+  ov.id = 'autosim-overlay';
+  ov.className = 'md-overlay autosim';
+  ov.innerHTML = `<div class="md-panel as-panel">
+    <div class="md-head">${ICONS.ff}<div><small>Auto sim</small><h2 data-as-title>Simulating…</h2></div></div>
+    <p class="as-now" data-as-now>Starting</p>
+    <div class="lab-progress"><i data-as-bar></i></div>
+    <ul class="as-log" data-as-log></ul>
+    <button class="btn danger block" data-as-stop>Stop</button>
+    <button class="btn primary block" data-as-done hidden>Done</button>
+  </div>`;
+  document.body.appendChild(ov);
+  requestAnimationFrame(() => ov.classList.add('show'));
+  ov.querySelector('[data-as-stop]').addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    run.active = false;
+    const b = e.currentTarget; b.textContent = 'Stopping…'; b.disabled = true;
+  });
+  ov.querySelector('[data-as-done]').addEventListener('click', () => { ov.classList.remove('show'); setTimeout(() => ov.remove(), 300); });
+  const $ = (s) => ov.querySelector(s);
+  const champions = [];
+  const w = () => app.world;
+  const comps = () => run.sel.map((id) => w().leagues[id]).filter(Boolean);
+  let totalRounds = 0, doneRounds = 0;
+  const remaining = () => comps().reduce((t, l) => t + (l.season && !l.season.finished ? Math.max(0, (l.season.fixtures.length ? Math.max(...l.season.fixtures.map((f) => f.round)) : 0) - currentRound(l) + 1) : 0), 0);
+  let season = 0;
+  try {
+    for (season = 1; season <= seasons && run.active; season++) {
+      if (season > 1 || comps().every((l) => l.season && l.season.finished)) {
+        // move on to the next season if this one is already done
+        if (comps().every((l) => l.season && l.season.finished)) {
+          if (!rollOver(app, comps())) break;
+        }
+      }
+      totalRounds = remaining() || 1; doneRounds = 0;
+      $('[data-as-title]').textContent = seasons > 1 ? `Season ${season} of ${seasons}` : 'This season';
+      // leagues first (cups may need their final tables), one matchday at a time with a breather
+      for (const l of comps().sort((a, b) => isCup(a) - isCup(b))) {
+        while (run.active) {
+          const cur = w().leagues[l.id];
+          if (!cur.season || cur.season.finished || !currentRound(cur)) break;
+          const r = currentRound(cur);
+          $('[data-as-now]').textContent = `${cur.name} ${cur.season.label} · ${cur.type === 'cup' ? roundLabel(r, cur) : `matchday ${r}`}`;
+          // the panel covers the screen, so don't redraw underneath until the end
+          quietly(app, (world) => playRound(world, world.leagues[l.id], app.params()), Infinity);
+          doneRounds++;
+          $('[data-as-bar]').style.width = `${Math.min(100, (doneRounds / totalRounds) * 100)}%`;
+          if (w().leagues[l.id].season.finished) {
+            const h = w().leagues[l.id].history.slice(-1)[0];
+            const c = h && w().clubs[h.championId];
+            const line = `🏆 ${l.name} ${h ? h.label : ''}: ${c ? c.name : '—'}`;
+            champions.push(line);
+            const li = document.createElement('li'); li.textContent = line; $('[data-as-log]').prepend(li);
+          }
+          await frame();
+        }
+      }
+    }
+  } finally {
+    const stopped = !run.active;
+    run.active = false;
+    $('[data-as-title]').textContent = stopped ? 'Stopped' : 'Finished';
+    $('[data-as-now]').textContent = champions.length ? `${champions.length} competition${champions.length === 1 ? '' : 's'} completed` : 'Nothing was left to play';
+    $('[data-as-bar]').style.width = '100%';
+    $('[data-as-stop]').hidden = true;
+    $('[data-as-done]').hidden = false;
+    // save and refresh the screen after the result is showing
+    setTimeout(() => { endBatch(app); app.render({ silent: true }); }, 50);
+  }
 }
