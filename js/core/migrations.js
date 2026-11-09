@@ -2,7 +2,7 @@
 // (so they always apply to the latest copy and never race the cloud).
 import { createContinentalCup, isCup, startCupSeason } from '../league/cup.js';
 import { startSeason, seasonStarted } from '../league/season.js';
-import { addNewKronligaClubs, createDaffersCup, createDivision2 } from '../data/geko.js';
+import { addNewKronligaClubs, createDaffersCup, createDivision2, daffersEntries } from '../data/geko.js';
 import { competitionLeaderboard } from '../league/records.js';
 import { isKnockout } from '../league/cup.js';
 import { realizeContinentalClubs } from '../data/continental.js';
@@ -114,6 +114,21 @@ const MIGRATIONS = [
       div.config.relegationSpots = 3;
       div.config.feederCupId = daf.id;
       return { done: true, message: 'Division 2 now plays automatically with Kronliga, and its bottom 3 drop out of the league each season' };
+    },
+  },
+  {
+    id: 'daffers-div2-round2-v1',
+    // Requested: Division 2 joins the Daffers Cup in round 2, Kronliga in round 3.
+    run(world) {
+      const kron = Object.values(world.leagues).find((l) => !isCup(l) && l.name.trim().toLowerCase() === 'kronliga');
+      const div = kron && kron.config.lowerLeagueId && world.leagues[kron.config.lowerLeagueId];
+      const daf = Object.values(world.leagues).find((l) => isKnockout(l));
+      if (!kron || !div || !daf) return null;
+      daf.config.entries = daffersEntries(kron.id, div.id);
+      // if the current Daffers Cup hasn't kicked off yet, redraw it with the new rounds straight away
+      const started = daf.season && daf.season.fixtures.some((f) => f.result);
+      if (daf.season && !daf.season.finished && !started) startCupSeason(world, daf, daf.season.number);
+      return { done: true, message: `Daffers Cup: Division 2 now joins in round 2 and Kronliga in round 3${!started ? ` (${daf.season.label} redrawn)` : ' (from next season)'}` };
     },
   },
   {

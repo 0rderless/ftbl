@@ -9,6 +9,7 @@ import { seasonLabel } from '../data/model.js';
  * Entry list → clubs per entry, in the order they are listed.
  * Entry kinds: { leagueId } every club in that league, { clubIds } fixed clubs,
  * { rest: true, weakest: n } the n lowest-rated pool clubs not already placed,
+ * { rest: true, strongest: n } the n highest-rated pool clubs not already placed,
  * { rest: true } all remaining pool clubs (pool = cup.config.pool).
  */
 export function entryGroups(world, cup) {
@@ -28,7 +29,7 @@ export function entryGroups(world, cup) {
     const e = g.entry;
     if (!e.rest) return;
     const pool = rest().sort((a, b) => rating(a) - rating(b));
-    take(g, e.weakest ? pool.slice(0, e.weakest) : pool);
+    take(g, e.weakest ? pool.slice(0, e.weakest) : e.strongest ? pool.slice(-e.strongest).reverse() : pool);
   });
   return out;
 }

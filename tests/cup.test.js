@@ -154,9 +154,9 @@ test('cup seasons are reproducible from the seed', async () => {
 test('migration adds the Champions League once, keeps every existing record, and is idempotent', () => {
   const { w, k } = worldWithKronliga();
   const before = JSON.parse(JSON.stringify(w));
-  assert.equal(pendingMigrations(w).length, 7);
+  assert.equal(pendingMigrations(w).length, 8);
   const msgs = runMigrations(w);
-  assert.equal(msgs.length, 4, 'Champions League + Daffers Cup + Division 2 + Division 2 auto-play messages (continental clubs are already real)');
+  assert.equal(msgs.length, 5, 'Champions League + Daffers Cup + Division 2 + auto-play + Daffers rounds messages (continental clubs are already real)');
   const cups = Object.values(w.leagues).filter((l) => isCup(l) && l.format !== 'knockout');
   assert.equal(cups.length, 1);
   assert.equal(cups[0].name, 'Champions League');
@@ -177,7 +177,7 @@ test('migration adds the Champions League once, keeps every existing record, and
   // a world without Kronliga history is left alone (and retried later)
   const empty = emptyWorld();
   assert.deepEqual(runMigrations(empty), []);
-  assert.equal(pendingMigrations(empty).length, 4, 'Champions League, Kronliga/Daffers and Division 2 upgrades wait for a Kronliga');
+  assert.equal(pendingMigrations(empty).length, 5, 'Champions League, Kronliga/Daffers and Division 2 upgrades wait for a Kronliga');
 });
 
 test('league table marks exactly the top 3 as Champions League places', async () => {

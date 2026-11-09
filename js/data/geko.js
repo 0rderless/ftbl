@@ -155,14 +155,23 @@ export function createDivision2(world, kron, daffers, leaderboard) {
   if (daffers && daffers.format === 'knockout') {
     // pool = every club in Geko; entry rounds follow the leagues so promoted/relegated clubs enter in the right round
     daffers.config.pool = [...new Set([...(daffers.config.pool || []), ...(daffers.season ? daffers.season.clubIds : []), ...kron.clubIds, ...ids])];
-    daffers.config.entries = [
-      { round: 1, rest: true, weakest: 24, label: 'Geko non-league (smallest)' },
-      { round: 2, rest: true, label: 'Geko non-league' },
-      { round: 3, leagueId: div.id, label: 'Division 2' },
-      { round: 3, leagueId: kron.id, label: 'Kronliga' },
-    ];
-    // the leagues are placed first so they never land in the non-league rounds
-    daffers.config.entries = [daffers.config.entries[2], daffers.config.entries[3], daffers.config.entries[0], daffers.config.entries[1]];
+    daffers.config.entries = daffersEntries(kron.id, div.id);
   }
   return div;
+}
+
+/**
+ * Daffers Cup entry rounds: Division 2 joins in round 2, Kronliga in round 3.
+ * With 100 clubs (20 + 20 + 60 non-league) that makes a full bracket with no byes:
+ * R1 12 smallest non-league (6 ties) · R2 Division 2 + 34 non-league + 6 winners (30 ties)
+ * · R3 Kronliga + 14 strongest non-league + 30 winners (64 clubs) · then 32 → 16 → 8 → 4 → 2.
+ */
+export function daffersEntries(kronId, divId) {
+  return [
+    { round: 3, leagueId: kronId, label: 'Kronliga' },
+    { round: 2, leagueId: divId, label: 'Division 2' },
+    { round: 1, rest: true, weakest: 12, label: 'Geko non-league (smallest)' },
+    { round: 3, rest: true, strongest: 14, label: 'Geko non-league (strongest)' },
+    { round: 2, rest: true, label: 'Geko non-league' },
+  ];
 }

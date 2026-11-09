@@ -199,11 +199,14 @@ test('Division 2: Daffers winners first then most Daffers points; 3 up / 3 down;
   startNextSeason(w, daf);
   const groups = entryGroups(w, daf);
   assert.equal(daf.season.clubIds.length, 100);
-  assert.deepEqual(groups.map((g) => [g.label, g.round, g.ids.length]), [['Division 2', 3, 20], ['Kronliga', 3, 20], ['Geko non-league (smallest)', 1, 24], ['Geko non-league', 2, 36]]);
-  for (const id of down) assert.ok(groups[0].ids.includes(id));
+  assert.deepEqual(groups.map((g) => [g.label, g.round, g.ids.length]), [['Kronliga', 3, 20], ['Division 2', 2, 20], ['Geko non-league (smallest)', 1, 12], ['Geko non-league (strongest)', 3, 14], ['Geko non-league', 2, 34]]);
+  for (const id of down) assert.ok(groups[1].ids.includes(id), 'relegated clubs enter with Division 2 in round 2');
   playSeason(w, daf, P);
   const per = {}; for (const t of daf.season.ties) per[t.round] = (per[t.round] || 0) + 1;
-  assert.deepEqual(per, { 1: 12, 2: 24, 3: 32, 4: 16, 5: 8, 6: 4, 7: 2, 8: 1 });
+  assert.deepEqual(per, { 1: 6, 2: 30, 3: 32, 4: 16, 5: 8, 6: 4, 7: 2, 8: 1 }, 'full bracket, no byes');
+  assert.ok(!daf.season.ties.some((t) => t.bye));
+  for (const id of div.clubIds) assert.ok(!daf.season.ties.some((t) => t.round < 2 && (t.a === id || t.b === id)) && daf.season.ties.some((t) => t.round === 2 && (t.a === id || t.b === id)), 'Division 2 plays from round 2');
+  for (const id of k.clubIds) assert.ok(!daf.season.ties.some((t) => t.round < 3 && (t.a === id || t.b === id)), 'Kronliga from round 3');
 });
 
 test('Division 2 plays automatically with Kronliga; bottom 3 drop out for the best non-league Daffers clubs (100 stays 100)', async () => {
@@ -250,5 +253,5 @@ test('Division 2 plays automatically with Kronliga; bottom 3 drop out for the be
   // Daffers Cup still 100 clubs, dropped clubs now enter in the early rounds
   startNextSeason(w, daf);
   assert.equal(daf.season.clubIds.length, 100);
-  for (const id of dropped) assert.ok(daf.season.entries[1].includes(id) || daf.season.entries[2].includes(id));
+  for (const id of dropped) assert.ok(!k.clubIds.includes(id) && !div.clubIds.includes(id) && daf.season.clubIds.includes(id), 'dropped clubs still in the cup as non-league');
 });
