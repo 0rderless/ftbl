@@ -89,6 +89,7 @@ export function render(app, id) {
       <label class="field"><span>Promoted clubs</span><input type="number" min="0" max="10" data-field="cfg.promotionSpots" value="${c.promotionSpots}"></label>
       <label class="field"><span>League below (relegation goes here)</span><select data-field="cfg.lowerLeagueId"><option value="">None — bottom division</option>${others.map((x) => `<option value="${x.id}" ${c.lowerLeagueId === x.id ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></label>
       <label class="field"><span>Relegated clubs</span><input type="number" min="0" max="10" data-field="cfg.relegationSpots" value="${c.relegationSpots}"></label>
+      <label class="field"><span>Play automatically with</span><select data-field="cfg.followLeagueId"><option value="">No — I play it myself</option>${others.filter((x) => x.type !== 'cup').map((x) => `<option value="${x.id}" ${c.followLeagueId === x.id ? 'selected' : ''}>${esc(x.name)} (matchday by matchday)</option>`).join('')}</select></label>
       <p class="hint">Linked leagues swap clubs automatically when you start the next season. Each league keeps its own fixtures, results and player fitness.</p>
     </section>
     <section class="card">
@@ -244,7 +245,7 @@ export function onChange(app, el) {
   }
   if (f && f.startsWith('cfg.')) {
     const k = f.slice(4);
-    draft.config[k] = ['upperLeagueId', 'lowerLeagueId', 'fixedSeed'].includes(k) ? (el.value || null) : Number(el.value);
+    draft.config[k] = ['upperLeagueId', 'lowerLeagueId', 'fixedSeed', 'followLeagueId'].includes(k) ? (el.value || null) : Number(el.value);
     if (k === 'fixedSeed') draft.config.fixedSeed = el.value;
     app.render();
   }

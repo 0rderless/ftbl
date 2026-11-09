@@ -78,6 +78,7 @@ function fixturesTab(app, l) {
       <button class="icon-btn" data-act="round" data-v="${r + 1}" ${r >= total ? 'disabled' : ''} aria-label="Next matchday">${ICONS.chev}</button>
     </div>
     <div class="card fx-list">${rows}${byes.length ? `<p class="bye">Rest: ${byes.map((id) => esc(w.clubs[id] ? w.clubs[id].name : '?')).join(', ')}</p>` : ''}</div>
+    ${l.config.followLeagueId && app.world.leagues[l.config.followLeagueId] ? `<p class="hint">${ICONS.info} Plays automatically when you play ${esc(app.world.leagues[l.config.followLeagueId].name)}. You can still play it yourself here.</p>` : ''}
     ${!s.finished ? `${activeWins(app, l)}<div class="sim-bar">
       <button class="btn primary" data-act="play" data-id="${l.id}">${ICONS.play} Play MD ${cr}</button>
       <button class="btn win-btn" data-act="winGame" data-id="${l.id}">${ICONS.trophy} Win game</button>
@@ -236,7 +237,8 @@ function historyTab(app, l) {
           ${ts ? `<p>${ICONS.boot} Top scorer: <b>${esc(ts.name)}</b> (${ts.goals}) · ${h.topAssists[0] ? `Assists: <b>${esc(h.topAssists[0].name)}</b> (${h.topAssists[0].assists})` : ''}</p>` : ''}
           ${l.config.continentalCupId && app.world.leagues[l.config.continentalCupId] ? `<p class="up">${ICONS.star} ${esc(app.world.leagues[l.config.continentalCupId].name)}: ${h.table.slice(0, l.config.continentalSpots).map((r) => esc(name(h, r.clubId))).join(', ')}</p>` : ''}
           ${h.promoted.length ? `<p class="up">↑ Promoted: ${h.promoted.map((id) => esc(name(h, id))).join(', ')}</p>` : ''}
-          ${h.relegated.length ? `<p class="down">↓ Relegated: ${h.relegated.map((id) => esc(name(h, id))).join(', ')}</p>` : ''}
+          ${h.relegated.length ? `<p class="down">↓ ${l.config.lowerLeagueId ? 'Relegated' : 'Dropped out of the league'}: ${h.relegated.map((id) => esc(name(h, id))).join(', ')}</p>` : ''}
+          ${h.newcomers && h.newcomers.length ? `<p class="up">★ Came in from the Daffers Cup: ${h.newcomers.map((id) => esc(app.world.clubs[id] ? app.world.clubs[id].name : 'Unknown')).join(', ')}</p>` : ''}
           <table class="ltable compact"><thead><tr><th>#</th><th class="c-club">Club</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GD</th><th>Pts</th></tr></thead><tbody>
           ${h.table.map((r, i) => `<tr class="z-${zoneFor(i + 1, h.table.length, l.config)}"><td>${i + 1}</td><td class="c-club">${clubBadge(w.clubs[r.clubId], 18)}<span class="full show">${esc(name(h, r.clubId))}</span></td><td>${r.p}</td><td>${r.w}</td><td>${r.d}</td><td>${r.l}</td><td>${r.gf - r.ga}</td><td><b>${r.pts}</b></td></tr>`).join('')}
           </tbody></table>

@@ -102,6 +102,21 @@ const MIGRATIONS = [
     },
   },
   {
+    id: 'div2-auto-relegation-v1',
+    // Division 2 plays automatically with Kronliga; its bottom 3 drop out each season and are
+    // replaced by the best non-league clubs in the Daffers Cup (keeps 40 league clubs out of 100).
+    run(world) {
+      const kron = Object.values(world.leagues).find((l) => !isCup(l) && l.name.trim().toLowerCase() === 'kronliga');
+      const div = kron && kron.config.lowerLeagueId && world.leagues[kron.config.lowerLeagueId];
+      const daf = Object.values(world.leagues).find((l) => isKnockout(l));
+      if (!kron || !div || !daf) return null;
+      div.config.followLeagueId = kron.id;
+      div.config.relegationSpots = 3;
+      div.config.feederCupId = daf.id;
+      return { done: true, message: 'Division 2 now plays automatically with Kronliga, and its bottom 3 drop out of the league each season' };
+    },
+  },
+  {
     id: 'cup-season-label-v1',
     // A cup whose qualifiers came from league season X should be labelled as the season after X.
     run(world) {

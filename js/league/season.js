@@ -192,9 +192,27 @@ export function playFixture(world, league, fixtureId, params, squads) {
   if (season.fixtures.filter((x) => x.round === cr).every((x) => x.result)) {
     endRound(league, sq);
     if (isCup(league)) advanceCup(world, league);
+    else playFollowers(world, league, cr, params, isSeasonComplete(league));
   }
   if (!isCup(league) && isSeasonComplete(league) && !season.finished) finishSeason(world, league);
   return f;
+}
+
+/** Leagues set to play automatically alongside this one (e.g. Division 2 with Kronliga). */
+export function followers(world, league) {
+  return Object.values(world.leagues).filter((l) => !isCup(l) && l.id !== league.id && l.config.followLeagueId === league.id && l.season);
+}
+
+/** Bring followers up to the leader's matchday (or to the end of their season when the leader finishes). */
+function playFollowers(world, league, round, params, leaderDone) {
+  for (const f of followers(world, league)) {
+    if (f.season.finished || f.season.label !== league.season.label) continue;
+    for (let guard = 0; guard < 200; guard++) {
+      const r = currentRound(f);
+      if (!r || (!leaderDone && r > round)) break;
+      playRound(world, f, params);
+    }
+  }
 }
 
 export function playRound(world, league, params) {
@@ -347,6 +365,32 @@ export function finishSeason(world, league) {
   return entry;
 }
 
+/**
+ * Best non-league clubs from the feeder cup (the Daffers Cup) to fill places in the lowest division:
+ * furthest round reached in the latest finished cup season, then all-time cup points, then rating.
+ */
+export function feederReplacements(world, league, n, exclude = []) {
+  const cup = world.leagues[league.config.feederCupId];
+  if (!cup || n <= 0) return [];
+  const inLeagues = new Set(Object.values(world.leagues).filter((l) => !isCup(l)).flatMap((l) => l.clubIds));
+  const pool = (cup.config.pool || cup.clubIds || []).filter((id) => world.clubs[id] && !inLeagues.has(id) && !exclude.includes(id));
+  const reached = {};
+  const last = cup.history[cup.history.length - 1];
+  if (last) {
+    const rounds = Math.max(1, ...last.ties.map((t) => (t.stage === 'final' ? 0 : parseInt(String(t.stage).replace(/\D/g, ''), 10) || 0))) + 1;
+    for (const t of last.ties) {
+      const r = t.stage === 'final' ? rounds : parseInt(String(t.stage).replace(/\D/g, ''), 10) || 0;
+      for (const id of [t.a, t.b]) if (id) reached[id] = Math.max(reached[id] || 0, r + (t.winner === id ? 0.5 : 0));
+    }
+  }
+  const pts = {};
+  for (const h of cup.history) for (const [, a, b, ga, gb] of h.results || []) {
+    pts[a] = (pts[a] || 0) + (ga > gb ? 3 : ga === gb ? 1 : 0);
+    pts[b] = (pts[b] || 0) + (gb > ga ? 3 : ga === gb ? 1 : 0);
+  }
+  return pool.sort((a, b) => (reached[b] || 0) - (reached[a] || 0) || (pts[b] || 0) - (pts[a] || 0) || world.clubs[b].ratings.overall - world.clubs[a].ratings.overall).slice(0, n);
+}
+
 // All leagues connected to this one through promotion/relegation links.
 export function pyramid(world, league) {
   const seen = new Set();
@@ -409,6 +453,20 @@ export function startNextSeason(world, league) {
     for (const id of m.up) {
       const c = world.clubs[id];
       if (c) c.honours.push({ type: 'promotion', leagueId: m.lower.id, leagueName: m.lower.name, season: lh.label });
+    }
+  }
+  for (const l of group) {
+    if (l.config.lowerLeagueId || !l.config.relegationSpots || !l.config.feederCupId) continue;
+    const h = l.history[l.history.length - 1];
+    if (!h || h.label !== curLabel) continue;
+    const out = h.table.slice(h.table.length - l.config.relegationSpots).map((r) => r.clubId).filter((id) => l.clubIds.includes(id));
+    const inn = feederReplacements(world, l, out.length, out);
+    l.clubIds = l.clubIds.filter((id) => !out.includes(id)).concat(inn);
+    h.relegated = out.slice();
+    h.newcomers = inn.slice();
+    for (const id of inn) {
+      const c = world.clubs[id];
+      if (c) c.honours.push({ type: 'promotion', leagueId: l.id, leagueName: l.name, season: h.label, into: true });
     }
   }
   for (const l of group) {

@@ -1,5 +1,5 @@
 // UI-level simulation commands with matchday transitions.
-import { playRound, playFixture, playSeason, currentRound, totalRounds, startNextSeason, pyramidPending } from '../league/season.js';
+import { playRound, playFixture, playSeason, currentRound, totalRounds, startNextSeason, pyramidPending, followers } from '../league/season.js';
 import { roundLabel, pendingQualifiers, startNextCupSeason } from '../league/cup.js';
 import { clubBadge, leagueLogo } from './components.js';
 import { esc, sheet } from './dom.js';
@@ -18,13 +18,21 @@ const reduceMotion = () => window.matchMedia && window.matchMedia('(prefers-redu
 
 function resultsOverlay(app, league, round, fixtures) {
   const w = app.world;
-  const rows = fixtures.map((f, i) => {
+  const row = (lg, f, i) => {
     const h = w.clubs[f.home], a = w.clubs[f.away];
-    return `<a class="md-row" style="--d:${i * 70}ms" href="#/match/${league.id}/${f.id}" data-close>
+    return `<a class="md-row" style="--d:${i * 70}ms" href="#/match/${lg.id}/${f.id}" data-close>
       <span class="md-team"><span class="nm">${esc(h ? h.name : '?')}</span>${clubBadge(h, 26)}</span>
       <span class="md-score"><b>${f.result.hg}</b><i>-</i><b>${f.result.ag}</b>${f.result.pens ? `<small>${f.result.pens.home}-${f.result.pens.away}p</small>` : f.result.et ? '<small>aet</small>' : ''}</span>
       <span class="md-team away">${clubBadge(a, 26)}<span class="nm">${esc(a ? a.name : '?')}</span></span></a>`;
-  }).join('');
+  };
+  let rows = fixtures.map((f, i) => row(league, f, i)).join('');
+  // leagues that play along automatically (e.g. Division 2 with Kronliga)
+  if (league.type !== 'cup') {
+    for (const fl of followers(w, league)) {
+      const list = fl.season.fixtures.filter((f) => f.round === round && f.result);
+      if (list.length) rows += `<div class="md-sub">${leagueLogo(fl, 22)}<span>${esc(fl.name)} · Matchday ${round}</span></div>` + list.map((f, i) => row(fl, f, fixtures.length + i)).join('');
+    }
+  }
   const o = overlay(`<div class="md-panel">
       <div class="md-head">${leagueLogo(league, 40)}<div><small>${esc(league.name)} · ${esc(league.season.label)}</small><h2>${esc(league.type === 'cup' ? roundLabel(round, league) : `Matchday ${round}`)}</h2></div></div>
       <div class="md-list">${rows}</div>
@@ -123,6 +131,12 @@ export async function nextSeason(app, leagueId) {
   if (!moves) return;
   const w = app.world;
   const lines = moves.map((m) => `${m.up.map((id) => w.clubs[id] && w.clubs[id].name).join(', ') || 'Nobody'} promoted to ${m.upper.name}; ${m.down.map((id) => w.clubs[id] && w.clubs[id].name).join(', ') || 'nobody'} relegated.`);
+  for (const l of Object.values(w.leagues)) {
+    const h = l.history[l.history.length - 1];
+    if (h && h.newcomers && h.newcomers.length && l.season && l.season.number > h.number && !l.season.fixtures.some((f) => f.result)) {
+      lines.push(`${h.relegated.map((id) => w.clubs[id] && w.clubs[id].name).join(', ')} dropped out of ${l.name}; ${h.newcomers.map((id) => w.clubs[id] && w.clubs[id].name).join(', ')} came in from the Daffers Cup.`);
+    }
+  }
   app.toast(lines.length ? lines.join(' ') : `Season ${w.leagues[leagueId].season.label} has begun`, 'ok');
   app.nav(`#/league/${leagueId}/fixtures`);
 }

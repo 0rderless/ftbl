@@ -205,3 +205,50 @@ test('Division 2: Daffers winners first then most Daffers points; 3 up / 3 down;
   const per = {}; for (const t of daf.season.ties) per[t.round] = (per[t.round] || 0) + 1;
   assert.deepEqual(per, { 1: 12, 2: 24, 3: 32, 4: 16, 5: 8, 6: 4, 7: 2, 8: 1 });
 });
+
+test('Division 2 plays automatically with Kronliga; bottom 3 drop out for the best non-league Daffers clubs (100 stays 100)', async () => {
+  const { createDivision2 } = await import('../js/data/geko.js');
+  const { competitionLeaderboard } = await import('../js/league/records.js');
+  const { w, k } = kronliga(20);
+  const daf = createDaffersCup(w, k);
+  playSeason(w, daf, P);
+  playSeason(w, k, P);
+  const div = createDivision2(w, k, daf, competitionLeaderboard(w, daf));
+  w.settings.ui.migrations = { 'champions-league-v1': 1, 'real-clubs-v1': 1, 'fresh-start-2026-v1': 1, 'cup-season-label-v1': 1, 'kronliga-20-daffers-v1': 1, 'division-2-v1': 1 };
+  runMigrations(w);
+  assert.equal(div.config.followLeagueId, k.id);
+  startNextSeason(w, k);
+  // playing Kronliga matchdays plays Division 2 too
+  playRound(w, k, P); playRound(w, k, P);
+  assert.equal(currentRound(k), 3);
+  assert.equal(currentRound(div), 3, 'Division 2 kept pace');
+  // finishing Kronliga finishes Division 2 as well
+  playSeason(w, k, P);
+  assert.ok(k.season.finished && div.season.finished, 'both seasons complete');
+  // next season: 3 up, 3 down, and Division 2's bottom 3 replaced from the Daffers Cup
+  const dTable = div.history[div.history.length - 1].table;
+  const kTable = k.history[k.history.length - 1].table;
+  const relegatedFromKron = kTable.slice(-3).map((r) => r.clubId);
+  const promoted = dTable.slice(0, 3).map((r) => r.clubId);
+  const dropped = dTable.slice(-3).map((r) => r.clubId);
+  startNextSeason(w, k);
+  const h = div.history[div.history.length - 1];
+  assert.deepEqual(h.relegated, dropped);
+  assert.equal(h.newcomers.length, 3);
+  for (const id of dropped) assert.ok(!div.clubIds.includes(id) && !k.clubIds.includes(id), 'dropped clubs leave the leagues');
+  for (const id of h.newcomers) assert.ok(div.clubIds.includes(id) && daf.config.pool.includes(id), 'newcomers come from the Daffers Cup pool');
+  for (const id of relegatedFromKron) assert.ok(div.clubIds.includes(id));
+  for (const id of promoted) assert.ok(k.clubIds.includes(id));
+  assert.equal(k.clubIds.length, 20); assert.equal(div.clubIds.length, 20);
+  assert.equal(new Set([...k.clubIds, ...div.clubIds]).size, 40, '40 league clubs, no duplicates');
+  // newcomers are the non-league clubs that went furthest in the last Daffers Cup
+  const last = daf.history[daf.history.length - 1];
+  const roundOf = (id) => Math.max(0, ...last.ties.filter((t) => t.a === id || t.b === id).map((t) => (t.stage === 'final' ? 99 : parseInt(t.stage.slice(1), 10))));
+  const nonLeague = daf.config.pool.filter((id) => !k.clubIds.includes(id) && !div.clubIds.includes(id) && !dropped.includes(id));
+  const best = Math.max(...nonLeague.map(roundOf));
+  assert.ok(h.newcomers.every((id) => roundOf(id) >= best - 1), 'newcomers did at least as well as the rest');
+  // Daffers Cup still 100 clubs, dropped clubs now enter in the early rounds
+  startNextSeason(w, daf);
+  assert.equal(daf.season.clubIds.length, 100);
+  for (const id of dropped) assert.ok(daf.season.entries[1].includes(id) || daf.season.entries[2].includes(id));
+});
