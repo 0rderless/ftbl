@@ -3,6 +3,7 @@ import { ICONS, header, leagueLogo, clubBadge, emptyState } from '../components.
 import { currentRound, totalRounds } from '../../league/season.js';
 import { computeTable } from '../../league/table.js';
 import { roundLabel } from '../../league/cup.js';
+import { openAutoPlay, isAutoRunning } from '../autoPlay.js';
 
 export function render(app) {
   const w = app.world;
@@ -24,6 +25,8 @@ export function render(app) {
           ${up ? `<span class="tag">↑ ${esc(up.name)}</span>` : ''}${down ? `<span class="tag">↓ ${esc(down.name)}</span>` : ''}</p>
       </div>${ICONS.chev}</a>`;
   }).join('') : emptyState('No leagues yet', 'Create a competition, pick its clubs and generate fixtures automatically.', '<a class="btn primary" href="#/leagues/new">New league</a>');
-  return `${header({ title: 'Leagues', actions: `<a class="icon-btn accent" href="#/leagues/new" aria-label="New league">${ICONS.plus}</a>` })}
-    <div class="pad">${body}</div>`;
+  return `${header({ title: 'Leagues', actions: `<button class="icon-btn" data-act="auto" aria-label="Auto play">${ICONS.ff}</button><a class="icon-btn accent" href="#/leagues/new" aria-label="New league">${ICONS.plus}</a>` })}
+    <div class="pad">${leagues.length ? `<button class="btn block autoplay-btn" data-act="auto">${ICONS.ff} ${isAutoRunning() ? 'Auto play is running — tap to stop' : 'Auto play matches'}</button>` : ''}${body}</div>`;
 }
+
+export const actions = { auto(app) { openAutoPlay(app); } };

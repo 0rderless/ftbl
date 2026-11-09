@@ -32,6 +32,7 @@ Backups are listed under **Sim → Data & app → Backups** and can be restored 
 - **Daffers Cup.** A knockout for all 100 clubs in the made-up country of Geko, played as one match per tie with extra time and penalties if level. The 12 smallest non-league clubs start in Round 1. Division 2 joins in Round 2, and Kronliga and the 14 strongest non-league clubs join in Round 3, so every round is full. The final is at the Geko National Stadium.
 - **Win game.** Available in any league or cup: type part of a team's name, pick it, and it wins its next match, next 3, or every match. The game chooses the score.
 - **Sim match (FIFA-style).** Watch a match play out live, with a running clock, ball and momentum on a pitch, goal pop-ups, an event feed and live stats. You can pause, change speed (1x to 8x) or skip to the result.
+- **Auto play.** Pick which competitions to include and a speed (Slow, Normal, Fast or Turbo), then tap Start. Matchdays keep playing in turn, optionally into new seasons, while you browse. A bar shows live results and has a Stop button.
 - **Simulation.** Play one match, a whole matchday or the rest of the season. Each match report has a timeline, statistics, line-ups on a pitch with player ratings, and pre-match win probabilities.
 - **Football world.** Tables (overall, home and away), top scorers, assists, ratings, clean sheets, cards, team stats, form guides, season history, previous champions, league, club and player records, a trophy cabinet and player awards.
 

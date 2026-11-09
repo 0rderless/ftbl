@@ -814,3 +814,27 @@ button.pp { background: none; border: 0; padding: 0; color: inherit; cursor: poi
 /* update available */
 .update-bar { position: fixed; left: 12px; right: 12px; top: calc(var(--safe-top) + 8px); z-index: 120; max-width: 560px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px 10px 16px; border-radius: 14px; background: #1d1d2e; border: 1px solid var(--accent); box-shadow: 0 10px 40px rgba(0, 0, 0, .6), 0 0 0 4px var(--glow); font-weight: 650; font-size: 14px; transform: translateY(-140%); transition: transform .35s cubic-bezier(.2, .8, .2, 1); }
 .update-bar.show { transform: none; }
+/* auto play */
+.autoplay-btn { border-color: rgba(139, 92, 246, .5); background: linear-gradient(90deg, rgba(139, 92, 246, .18), rgba(139, 92, 246, .05)); color: var(--accent2); margin: 0 0 12px; }
+.ap-list { max-height: 40vh; overflow-y: auto; margin: 4px -4px 12px; }
+.ap-item { display: flex; align-items: center; gap: 10px; padding: 9px 4px; border-bottom: 1px solid var(--line); cursor: pointer; }
+.ap-item span { flex: 1; }
+.ap-item b { display: block; font-size: 14px; }
+.ap-item small { color: var(--muted); font-size: 12px; }
+.ap-item.follow { opacity: .6; }
+.ap-speed { margin-bottom: 4px; }
+.autoplay-bar { position: fixed; left: 10px; right: 10px; bottom: calc(var(--tabbar) + var(--safe-bot) + 10px); z-index: 60; max-width: 600px; margin: 0 auto; display: flex; align-items: center; gap: 8px; padding: 9px 10px 9px 12px; border-radius: 16px; background: rgba(24, 22, 40, .96); border: 1px solid var(--accent); box-shadow: 0 12px 40px rgba(0, 0, 0, .6), 0 0 0 3px var(--glow); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); transform: translateY(140%); transition: transform .3s cubic-bezier(.2, .8, .2, 1); }
+.autoplay-bar.show { transform: none; }
+.ap-live { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; }
+.ap-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--ok); flex: none; animation: pulse 1s ease-in-out infinite; }
+.ap-text { min-width: 0; }
+.ap-text b { display: block; font-size: 13px; }
+.ap-text small { display: block; color: var(--muted); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ap-res { display: flex; gap: 8px; margin-top: 2px; font-size: 11px; }
+.ap-res span { display: inline-flex; align-items: center; gap: 3px; }
+.autoplaying .sim-bar { bottom: calc(var(--tabbar) + var(--safe-bot) + 88px); }
+.autoplaying .view { padding-bottom: calc(var(--tabbar) + var(--safe-bot) + 100px); }
+.autoplay-bar { height: 64px; }
+.autoplay-bar .btn { flex: none; }
+.ap-text small { height: 15px; }
+.ap-res { height: 16px; overflow: hidden; white-space: nowrap; flex-wrap: nowrap; }

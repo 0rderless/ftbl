@@ -5,6 +5,7 @@ import { currentRound, totalRounds, clubForm, startSeason } from '../../league/s
 import { buildDemoWorld } from '../../data/demo.js';
 import { simMatchday, nextSeason } from '../simActions.js';
 import { cupStageText } from './cup.js';
+import { openAutoPlay, isAutoRunning } from '../autoPlay.js';
 import { competitions } from './biggest.js';
 import { competitionLeaderboard, countryLeaderboard } from '../../league/records.js';
 import { roundLabel, cupClubStatus, playLabel, cupTotalRounds, isKnockout } from '../../league/cup.js';
@@ -24,6 +25,7 @@ export function render(app) {
       </div>
     </section>
     <div class="pad">
+      ${leagues.length ? `<button class="btn block autoplay-btn" data-act="auto">${isAutoRunning() ? `${ICONS.ff} Auto play is running — tap to stop` : `${ICONS.ff} Auto play matches`}</button>` : ''}
       ${leagues.length ? leagues.map((l) => leagueCard(app, l)).join('') : `<div class="card cta"><h3>Create your first league</h3><p class="muted">You have ${nClubs} club${nClubs === 1 ? '' : 's'}. Put them into a competition.</p><a class="btn primary" href="#/leagues/new">${ICONS.plus} New league</a></div>`}
       ${biggestCard(app)}
       <div class="quick-grid">
@@ -123,5 +125,6 @@ export const actions = {
     }, 'Demo world loaded');
   },
   play(app, el) { simMatchday(app, el.dataset.id); },
+  auto(app) { openAutoPlay(app); },
   next(app, el) { nextSeason(app, el.dataset.id); },
 };

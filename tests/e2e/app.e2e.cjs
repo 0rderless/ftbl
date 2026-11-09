@@ -448,6 +448,38 @@ async function withCloud(ctx) {
     }
     step('past seasons switcher on tables');
 
+    // ---- Auto play: pick competitions, run, stop ----
+    await go('#/');
+    await page.click('[data-act=auto]');
+    await page.waitForSelector('.ap-list');
+    const enabled = await page.$$eval('[data-ap]:not([disabled])', (els) => els.map((e) => e.dataset.ap));
+    w = await world();
+    const target = enabled.find((id) => w.leagues[id].season && !w.leagues[id].season.finished);
+    assert.ok(target, 'a playable competition to auto play');
+    const others = Object.keys(w.leagues).filter((id) => id !== target && !(w.leagues[id].config.followLeagueId === target));
+    const snap = (ww) => JSON.stringify(others.map((id) => ww.leagues[id].season.fixtures.filter((f) => f.result).length));
+    const apBefore = snap(w);
+    const tBefore = w.leagues[target].season.fixtures.filter((f) => f.result).length;
+    for (const id of await page.$$eval('[data-ap]:checked', (els) => els.map((e) => e.dataset.ap))) await page.uncheck(`[data-ap="${id}"]`);
+    await page.check(`[data-ap="${target}"]`);
+    await page.click('[data-speed="max"]');
+    await page.click('.sheet [data-sheet="start"]');
+    await page.waitForSelector('.autoplay-bar.show');
+    await page.waitForFunction(([id, n]) => window.ftbl.store.world.leagues[id].season.fixtures.filter((f) => f.result).length > n, [target, tBefore], { timeout: 15000 });
+    await go(`#/league/${target}`); // keeps running while browsing
+    // it may already have finished the competition on its own at turbo speed
+    const stillRunning = await page.evaluate(() => !!document.querySelector('#autoplay-bar.show'));
+    if (stillRunning) await page.click('[data-ap-act=stop]', { timeout: 5000 }).catch(() => {});
+    await page.waitForSelector('#autoplay-bar', { state: 'detached' });
+    w = await world();
+    const tAfter = w.leagues[target].season.fixtures.filter((f) => f.result).length;
+    assert.ok(tAfter > tBefore, 'selected competition was played');
+    assert.equal(snap(w), apBefore, 'unselected competitions untouched');
+    await page.waitForTimeout(800);
+    w = await world();
+    assert.equal(w.leagues[target].season.fixtures.filter((f) => f.result).length, tAfter, 'stopped means stopped');
+    step('Auto play: runs only the selected competitions, keeps going while browsing, Stop stops it');
+
     // ---- delete flow guards ----
     await go(`#/club/${Object.values(w.clubs).find((c) => c.name === 'Ravenmoor FC').id}/squad`);
     await page.waitForSelector('.pitch');
