@@ -5,6 +5,8 @@ import { currentRound, totalRounds, clubForm, startSeason } from '../../league/s
 import { buildDemoWorld } from '../../data/demo.js';
 import { simMatchday, nextSeason } from '../simActions.js';
 import { cupStageText } from './cup.js';
+import { competitions } from './biggest.js';
+import { competitionLeaderboard } from '../../league/records.js';
 import { roundLabel, cupClubStatus, playLabel, cupTotalRounds, isKnockout } from '../../league/cup.js';
 
 export function render(app) {
@@ -23,6 +25,7 @@ export function render(app) {
     </section>
     <div class="pad">
       ${leagues.length ? leagues.map((l) => leagueCard(app, l)).join('') : `<div class="card cta"><h3>Create your first league</h3><p class="muted">You have ${nClubs} club${nClubs === 1 ? '' : 's'}. Put them into a competition.</p><a class="btn primary" href="#/leagues/new">${ICONS.plus} New league</a></div>`}
+      ${biggestCard(app)}
       <div class="quick-grid">
         <a class="quick" href="#/clubs/new">${ICONS.shield}<span>Create club</span></a>
         <a class="quick" href="#/players/new">${ICONS.user}<span>Create player</span></a>
@@ -31,6 +34,15 @@ export function render(app) {
       </div>
     </div>
   </div>`;
+}
+
+function biggestCard(app) {
+  const w = app.world;
+  const items = competitions(w).map((l) => ({ l, top: competitionLeaderboard(w, l)[0] })).filter((x) => x.top && x.top.titles > 0);
+  if (!items.length) return '';
+  return `<a class="card biggest-card" href="#/biggest"><div class="card-title">👑 Biggest clubs <span class="count link">Leaderboards ›</span></div>
+    ${items.map(({ l, top }) => `<div class="bc-row">${leagueLogo(l, 26)}<span class="bc-comp">${esc(l.name)}</span>${clubBadge(w.clubs[top.clubId], 24)}<b>${esc(top.name)}</b><em>${top.titles}🏆</em></div>`).join('')}
+  </a>`;
 }
 
 function cupCard(app, l) {

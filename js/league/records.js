@@ -128,3 +128,27 @@ export function playerLeaderboards(world) {
   const top = (k) => rows.filter((r) => r[k] > 0).sort((a, b) => b[k] - a[k]).slice(0, 15);
   return { goals: top('goals'), assists: top('assists'), apps: top('apps'), titles: top('titles') };
 }
+
+/**
+ * All-time leaderboard for one competition: titles, runner-up/final places and
+ * every match ever played in it (completed seasons + the current one).
+ */
+export function competitionLeaderboard(world, league) {
+  const rows = {};
+  const row = (id, name) => rows[id] || (rows[id] = { clubId: id, name: (world.clubs[id] && world.clubs[id].name) || name || 'Former club', titles: 0, seconds: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, p: 0, lastTitle: null });
+  const addResult = (h, a, hg, ag, names = {}) => {
+    const H = row(h, names[h]), A = row(a, names[a]);
+    H.p++; A.p++; H.gf += hg; H.ga += ag; A.gf += ag; A.ga += hg;
+    if (hg > ag) { H.w++; A.l++; } else if (hg < ag) { A.w++; H.l++; } else { H.d++; A.d++; }
+  };
+  for (const h of league.history) {
+    const names = h.clubNames || {};
+    if (h.championId) { const r = row(h.championId, names[h.championId]); r.titles++; r.lastTitle = h.label; }
+    if (h.runnerUpId) row(h.runnerUpId, names[h.runnerUpId]).seconds++;
+    for (const [, hh, aa, hg, ag] of h.results || []) addResult(hh, aa, hg, ag, names);
+  }
+  const s = league.season;
+  if (s && !s.finished) for (const f of s.fixtures) if (f.result) addResult(f.home, f.away, f.result.hg, f.result.ag);
+  return Object.values(rows).filter((r) => r.p > 0 || r.titles > 0)
+    .sort((a, b) => b.titles - a.titles || b.seconds - a.seconds || b.w - a.w || (b.gf - b.ga) - (a.gf - a.ga));
+}

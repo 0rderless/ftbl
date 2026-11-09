@@ -118,3 +118,26 @@ test('Win game works in a league too', () => {
   assert.equal(k.history[0].championId, weakest);
   assert.equal(k.history[0].table[0].pts, 66);
 });
+
+test('Biggest clubs leaderboard: titles, runner-ups and all-time match wins per competition', async () => {
+  const { competitionLeaderboard } = await import('../js/league/records.js');
+  const { w, k } = kronliga(12);
+  for (let i = 0; i < 3; i++) { playSeason(w, k, P); startNextSeason(w, k); }
+  playRound(w, k, P);
+  const rows = competitionLeaderboard(w, k);
+  const titles = {};
+  for (const h of k.history) titles[h.championId] = (titles[h.championId] || 0) + 1;
+  assert.equal(rows[0].titles, Math.max(...Object.values(titles)));
+  assert.equal(rows.reduce((t, r) => t + r.titles, 0), 3);
+  assert.equal(rows.reduce((t, r) => t + r.seconds, 0), 3);
+  const games = 3 * 132 + k.season.fixtures.filter((f) => f.result).length;
+  assert.equal(rows.reduce((t, r) => t + r.p, 0), games * 2, 'every match counted for both clubs');
+  assert.equal(rows.reduce((t, r) => t + r.w, 0), rows.reduce((t, r) => t + r.l, 0));
+  for (let i = 1; i < rows.length; i++) assert.ok(rows[i - 1].titles >= rows[i].titles);
+  const cup = createDaffersCup(w, k);
+  playSeason(w, cup, P);
+  const cupRows = competitionLeaderboard(w, cup);
+  assert.equal(cupRows[0].titles, 1);
+  assert.equal(cupRows[0].clubId, cup.history[0].championId);
+  assert.equal(cupRows.reduce((t, r) => t + r.p, 0), (cup.season.clubIds.length - 1) * 2, 'a knockout has one match per eliminated club');
+});

@@ -17,6 +17,7 @@ import * as player from './views/player.js';
 import * as playerEdit from './views/playerEdit.js';
 import * as settings from './views/settings.js';
 import * as records from './views/records.js';
+import * as biggest from './views/biggest.js';
 
 const ROUTES = [
   [/^$/, home, 'home'],
@@ -35,6 +36,7 @@ const ROUTES = [
   [/^player\/([^/]+)$/, player, 'players'],
   [/^settings(?:\/([a-z]+))?$/, settings, 'settings'],
   [/^records$/, records, 'home'],
+  [/^biggest(?:\/([^/]+))?$/, biggest, 'home'],
 ];
 
 const TABS = [
