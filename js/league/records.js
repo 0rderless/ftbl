@@ -152,3 +152,35 @@ export function competitionLeaderboard(world, league) {
   return Object.values(rows).filter((r) => r.p > 0 || r.titles > 0)
     .sort((a, b) => b.titles - a.titles || b.seconds - a.seconds || b.w - a.w || (b.gf - b.ga) - (a.gf - a.ga));
 }
+
+/** Is this a club from Geko (Kronliga / Daffers Cup clubs), not a foreign continental club? */
+export function isGekoClub(club) {
+  return !!club && (!club.country || club.country === 'GEK');
+}
+
+/**
+ * Country-wide "biggest club in Geko": every trophy a Geko club has won in any
+ * competition (Kronliga, Daffers Cup and the Champions League), foreign clubs excluded.
+ */
+export function countryLeaderboard(world) {
+  const comps = Object.values(world.leagues);
+  const rows = {};
+  for (const l of comps) {
+    for (const r of competitionLeaderboard(world, l)) {
+      const c = world.clubs[r.clubId];
+      if (!isGekoClub(c)) continue;
+      const row = rows[r.clubId] || (rows[r.clubId] = { clubId: r.clubId, name: r.name, total: 0, by: {}, w: 0, p: 0, seconds: 0 });
+      row.by[l.id] = r.titles;
+      row.total += r.titles;
+      row.seconds += r.seconds;
+      row.w += r.w; row.p += r.p;
+    }
+  }
+  const order = comps.map((l) => l.id);
+  const cupFirst = comps.filter((l) => l.type === 'cup' && l.format !== 'knockout').map((l) => l.id);
+  return Object.values(rows).filter((r) => r.p > 0 || r.total > 0).sort((a, b) =>
+    b.total - a.total
+    || cupFirst.reduce((t, id) => t + (b.by[id] || 0), 0) - cupFirst.reduce((t, id) => t + (a.by[id] || 0), 0)
+    || order.reduce((t, id) => t || (b.by[id] || 0) - (a.by[id] || 0), 0)
+    || b.seconds - a.seconds || b.w - a.w);
+}

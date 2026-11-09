@@ -791,3 +791,12 @@ button.pp { background: none; border: 0; padding: 0; color: inherit; cursor: poi
 .lb-row b.hl { color: var(--gold); }
 .lb-row.top .lb-rank { color: var(--gold); font-weight: 800; }
 .lb-rank { color: var(--muted); font-weight: 700; }
+/* Geko overall leaderboard */
+.geko-flag { font-size: 18px; width: 22px; text-align: center; line-height: 1; }
+.bh-split { display: flex; justify-content: center; gap: 14px; margin-top: 10px; }
+.bh-split span { display: inline-flex; align-items: center; gap: 5px; }
+.bh-split b { font-family: var(--head); font-size: 18px; }
+.pod-split { color: var(--muted); font-size: 10px; line-height: 1.2; }
+.lb-logo { display: flex; justify-content: center; }
+.lb-row .zero { color: var(--dim); }
+.bc-row.geko { background: rgba(250, 204, 21, .06); margin: 0 -14px; padding: 8px 14px; }

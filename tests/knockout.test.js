@@ -141,3 +141,23 @@ test('Biggest clubs leaderboard: titles, runner-ups and all-time match wins per 
   assert.equal(cupRows[0].clubId, cup.history[0].championId);
   assert.equal(cupRows.reduce((t, r) => t + r.p, 0), (cup.season.clubIds.length - 1) * 2, 'a knockout has one match per eliminated club');
 });
+
+test('Geko biggest club: all trophies from Kronliga, Daffers Cup and Champions League; foreign clubs excluded', async () => {
+  const { countryLeaderboard, isGekoClub } = await import('../js/league/records.js');
+  const { createContinentalCup } = await import('../js/league/cup.js');
+  const { w, k } = kronliga(12);
+  playSeason(w, k, P); startNextSeason(w, k);
+  const daf = createDaffersCup(w, k);
+  playSeason(w, daf, P);
+  const { cup } = createContinentalCup(w, { qualifiers: [{ leagueId: k.id, spots: 3 }], startYear: 2027 });
+  setForcedWins(cup, cup.season.qualifiers[0], -1); // make sure a Geko club wins the UCL
+  playSeason(w, cup, P);
+  const rows = countryLeaderboard(w);
+  assert.ok(rows.every((r) => isGekoClub(w.clubs[r.clubId])), 'no foreign clubs');
+  assert.ok(!rows.some((r) => w.clubs[r.clubId].name === 'Real Madrid'));
+  assert.equal(rows.reduce((t, r) => t + r.total, 0), 3, 'Kronliga + Daffers + UCL titles all counted');
+  const ucl = rows.find((r) => r.by[cup.id]);
+  assert.equal(ucl.clubId, cup.season.qualifiers[0]);
+  assert.equal(rows[0].total, Math.max(...rows.map((r) => r.total)));
+  for (const r of rows) assert.equal(r.total, Object.values(r.by).reduce((t, n) => t + n, 0));
+});

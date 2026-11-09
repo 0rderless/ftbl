@@ -6,7 +6,7 @@ import { buildDemoWorld } from '../../data/demo.js';
 import { simMatchday, nextSeason } from '../simActions.js';
 import { cupStageText } from './cup.js';
 import { competitions } from './biggest.js';
-import { competitionLeaderboard } from '../../league/records.js';
+import { competitionLeaderboard, countryLeaderboard } from '../../league/records.js';
 import { roundLabel, cupClubStatus, playLabel, cupTotalRounds, isKnockout } from '../../league/cup.js';
 
 export function render(app) {
@@ -39,8 +39,10 @@ export function render(app) {
 function biggestCard(app) {
   const w = app.world;
   const items = competitions(w).map((l) => ({ l, top: competitionLeaderboard(w, l)[0] })).filter((x) => x.top && x.top.titles > 0);
+  const geko = countryLeaderboard(w)[0];
   if (!items.length) return '';
   return `<a class="card biggest-card" href="#/biggest"><div class="card-title">👑 Biggest clubs <span class="count link">Leaderboards ›</span></div>
+    ${geko && geko.total ? `<div class="bc-row geko">${'<span class="geko-flag">🦎</span>'}<span class="bc-comp">Geko (all trophies)</span>${clubBadge(w.clubs[geko.clubId], 24)}<b>${esc(geko.name)}</b><em>${geko.total}🏆</em></div>` : ''}
     ${items.map(({ l, top }) => `<div class="bc-row">${leagueLogo(l, 26)}<span class="bc-comp">${esc(l.name)}</span>${clubBadge(w.clubs[top.clubId], 24)}<b>${esc(top.name)}</b><em>${top.titles}🏆</em></div>`).join('')}
   </a>`;
 }

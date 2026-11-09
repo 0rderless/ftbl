@@ -1,5 +1,5 @@
 // Offline support: network-first for app files (so updates arrive), cache fallback when offline.
-const VERSION = 'ftbl-da84236c2e';
+const VERSION = 'ftbl-5794208f0b';
 const ASSETS = [
   './',
   './css/app.css',
