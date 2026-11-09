@@ -1,5 +1,5 @@
 // UI-level simulation commands with matchday transitions.
-import { playRound, playFixture, playSeason, currentRound, totalRounds, startNextSeason, pyramid } from '../league/season.js';
+import { playRound, playFixture, playSeason, currentRound, totalRounds, startNextSeason, pyramidPending } from '../league/season.js';
 import { roundLabel, pendingQualifiers, startNextCupSeason } from '../league/cup.js';
 import { clubBadge, leagueLogo } from './components.js';
 import { esc, sheet } from './dom.js';
@@ -113,8 +113,7 @@ export async function nextSeason(app, leagueId) {
     }
     return;
   }
-  const group = pyramid(app.world, league);
-  const pending = group.filter((l) => !l.season || !l.season.finished);
+  const pending = pyramidPending(app.world, league);
   if (pending.length) {
     const ok = await app.confirm(`Promotion and relegation link this league with ${pending.map((l) => l.name).join(', ')}, which ${pending.length > 1 ? 'are' : 'is'} still in progress. Simulate the rest of ${pending.length > 1 ? 'those seasons' : 'that season'} now?`, { ok: 'Simulate & continue', title: 'Linked leagues' });
     if (!ok) return;

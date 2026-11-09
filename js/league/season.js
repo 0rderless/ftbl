@@ -366,10 +366,21 @@ export function pyramid(world, league) {
  * Start the next season for a league and every league linked to it,
  * moving promoted/relegated clubs between divisions.
  */
+/**
+ * Linked leagues that still have to finish the same season before the next one can start.
+ * A linked league that is already on a later season (e.g. a new Division 2 that starts
+ * next season) doesn't hold anything up.
+ */
+export function pyramidPending(world, league) {
+  const label = league.season && league.season.label;
+  return pyramid(world, league).filter((l) => !l.season || (l.season.label <= label && !l.season.finished));
+}
+
 export function startNextSeason(world, league) {
   if (isCup(league)) { startNextCupSeason(world, league); return []; }
   const group = pyramid(world, league);
-  const pending = group.filter((l) => !l.season || !l.season.finished);
+  const curLabel = league.season.label;
+  const pending = pyramidPending(world, league);
   if (pending.length) {
     const err = new Error('Linked leagues still in progress: ' + pending.map((l) => l.name).join(', '));
     err.pending = pending.map((l) => l.id);
@@ -382,7 +393,7 @@ export function startNextSeason(world, league) {
     if (!lower || !group.includes(lower)) continue;
     const uh = upper.history[upper.history.length - 1];
     const lh = lower.history[lower.history.length - 1];
-    if (!uh || !lh) continue;
+    if (!uh || !lh || uh.label !== lh.label || uh.label !== curLabel) continue; // only swap after the same season
     const down = uh.table.slice(uh.table.length - (upper.config.relegationSpots || 0)).map((r) => r.clubId);
     const up = lh.table.slice(0, lower.config.promotionSpots || 0).map((r) => r.clubId)
       .filter((id) => !upper.clubIds.includes(id));
@@ -400,6 +411,13 @@ export function startNextSeason(world, league) {
       if (c) c.honours.push({ type: 'promotion', leagueId: m.lower.id, leagueName: m.lower.name, season: lh.label });
     }
   }
-  for (const l of group) startSeason(l, l.season.number + 1);
+  for (const l of group) {
+    if (l.season.finished && l.season.label <= curLabel) startSeason(l, l.season.number + 1);
+    else if (!seasonStarted(l)) {
+      // already on the next season and not kicked off: redraw if promotion/relegation changed its clubs
+      const same = l.season.clubIds.length === l.clubIds.length && l.clubIds.every((id) => l.season.clubIds.includes(id));
+      if (!same) startSeason(l, l.season.number, l.season.seed);
+    }
+  }
   return moves;
 }

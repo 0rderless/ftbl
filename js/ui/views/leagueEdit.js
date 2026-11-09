@@ -5,6 +5,7 @@ import { designerHTML, applyDesignerAction, applyDesignerInput, refreshPreview, 
 import { LEAGUE_DEFAULTS, makeShort } from '../../data/model.js';
 import { createLeague, updateLeague, setLeagueClubs, restartLeagueSeason, deleteLeague, updateCup } from '../../core/actions.js';
 import { seasonStarted } from '../../league/season.js';
+import { entryGroups } from '../../league/knockout.js';
 
 let draft = null, draftKey = null, search = '';
 
@@ -109,10 +110,7 @@ const BADGE_LIKE = BADGE_PRESETS.slice(0, 12);
 function knockoutEditor(app, l) {
   const w = app.world;
   const ctx = { name: draft.name || 'Cup', short: draft.short || 'CUP' };
-  const entries = (l.config.entries || []).map((e) => {
-    const n = e.leagueId ? ((w.leagues[e.leagueId] && w.leagues[e.leagueId].clubIds.length) || 0) : (e.clubIds || []).filter((id) => w.clubs[id]).length;
-    return `<div class="kv"><span>${esc(e.label || (e.leagueId && w.leagues[e.leagueId] ? w.leagues[e.leagueId].name : 'Clubs'))}</span><b>${n} clubs · round ${e.round}</b></div>`;
-  }).join('');
+  const entries = entryGroups(w, l).map((g) => `<div class="kv"><span>${esc(g.label || 'Clubs')}</span><b>${g.ids.length} clubs · round ${g.round}</b></div>`).join('');
   return `${header({ title: 'Edit competition', back: `#/league/${l.id}`, actions: '<button class="btn primary sm" data-act="save">Save</button>' })}
   <div class="pad form">
     <section class="card"><h3 class="card-title">Competition</h3>

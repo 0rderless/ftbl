@@ -5,17 +5,37 @@ import { RNG, randomSeed } from '../core/rng.js';
 import { seasonLabel } from '../data/model.js';
 
 // cup.config.entries = [{ round, clubIds?: [], leagueId?: id }]
+/**
+ * Entry list → clubs per entry, in the order they are listed.
+ * Entry kinds: { leagueId } every club in that league, { clubIds } fixed clubs,
+ * { rest: true, weakest: n } the n lowest-rated pool clubs not already placed,
+ * { rest: true } all remaining pool clubs (pool = cup.config.pool).
+ */
+export function entryGroups(world, cup) {
+  const entries = cup.config.entries || [];
+  const seen = new Set();
+  const out = entries.map((e) => ({ entry: e, round: e.round, label: e.label || '', ids: [] }));
+  const take = (g, ids) => { for (const id of ids) { if (!world.clubs[id] || seen.has(id)) continue; seen.add(id); g.ids.push(id); } };
+  out.forEach((g) => {
+    const e = g.entry;
+    if (e.rest) return;
+    take(g, e.leagueId ? ((world.leagues[e.leagueId] && world.leagues[e.leagueId].clubIds) || []) : (e.clubIds || []));
+    if (!g.label && e.leagueId && world.leagues[e.leagueId]) g.label = world.leagues[e.leagueId].name;
+  });
+  const rating = (id) => world.clubs[id].ratings.overall;
+  const rest = () => (cup.config.pool || []).filter((id) => world.clubs[id] && !seen.has(id));
+  out.forEach((g) => {
+    const e = g.entry;
+    if (!e.rest) return;
+    const pool = rest().sort((a, b) => rating(a) - rating(b));
+    take(g, e.weakest ? pool.slice(0, e.weakest) : pool);
+  });
+  return out;
+}
+
 export function entrantsByRound(world, cup) {
   const by = {};
-  const seen = new Set();
-  for (const e of cup.config.entries || []) {
-    const ids = e.leagueId ? ((world.leagues[e.leagueId] && world.leagues[e.leagueId].clubIds) || []) : (e.clubIds || []);
-    for (const id of ids) {
-      if (!world.clubs[id] || seen.has(id)) continue;
-      seen.add(id);
-      (by[e.round] || (by[e.round] = [])).push(id);
-    }
-  }
+  for (const g of entryGroups(world, cup)) for (const id of g.ids) (by[g.round] || (by[g.round] = [])).push(id);
   return by;
 }
 

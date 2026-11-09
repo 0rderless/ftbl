@@ -97,7 +97,7 @@ test('upgrade: unstarted Kronliga season gets the 8 clubs now; Daffers Cup creat
 test('upgrade with a Kronliga season already under way: new clubs join from next season', () => {
   const { w, k } = kronliga(12);
   playRound(w, k, P);
-  w.settings.ui.migrations = { 'champions-league-v1': 1, 'real-clubs-v1': 1, 'fresh-start-2026-v1': 1, 'cup-season-label-v1': 1 };
+  w.settings.ui.migrations = { 'champions-league-v1': 1, 'real-clubs-v1': 1, 'fresh-start-2026-v1': 1, 'cup-season-label-v1': 1, 'division-2-v1': 1 };
   const msgs = runMigrations(w);
   assert.ok(msgs[0].includes('from next season'));
   assert.equal(k.season.clubIds.length, 12, 'current season untouched');
@@ -160,4 +160,48 @@ test('Geko biggest club: all trophies from Kronliga, Daffers Cup and Champions L
   assert.equal(ucl.clubId, cup.season.qualifiers[0]);
   assert.equal(rows[0].total, Math.max(...rows.map((r) => r.total)));
   for (const r of rows) assert.equal(r.total, Object.values(r.by).reduce((t, n) => t + n, 0));
+});
+
+test('Division 2: Daffers winners first then most Daffers points; 3 up / 3 down; Daffers Cup follows the leagues', async () => {
+  const { createDivision2, pickDivision2 } = await import('../js/data/geko.js');
+  const { competitionLeaderboard } = await import('../js/league/records.js');
+  const { entryGroups } = await import('../js/league/knockout.js');
+  const { w, k } = kronliga(20);
+  const daf = createDaffersCup(w, k);
+  setForcedWins(daf, daf.config.pool[0], -1); // a non-Kronliga club wins the Daffers Cup
+  playSeason(w, daf, P);
+  playSeason(w, k, P); // Kronliga season finished, next not started
+  const lb = competitionLeaderboard(w, daf);
+  const picked = pickDivision2(w, k, daf, 20, lb);
+  assert.equal(picked[0], daf.config.pool[0], 'Daffers Cup winner is in automatically');
+  assert.ok(picked.every((id) => !k.clubIds.includes(id)));
+  const pts = (id) => { const r = lb.find((x) => x.clubId === id); return r ? r.w * 3 + r.d : 0; };
+  for (let i = 2; i < picked.length; i++) assert.ok(pts(picked[i - 1]) >= pts(picked[i]), 'ordered by points');
+  const div = createDivision2(w, k, daf, lb);
+  assert.equal(div.clubIds.length, 20);
+  assert.equal(div.season.label, '2027/28', 'starts alongside the next Kronliga season');
+  assert.equal(k.config.relegationSpots, 3);
+  assert.equal(div.config.promotionSpots, 3);
+  // Kronliga can start its next season without waiting for Division 2
+  startNextSeason(w, k);
+  assert.equal(k.season.label, '2027/28');
+  assert.equal(div.season.label, '2027/28');
+  // one season later: bottom 3 down, top 3 up
+  playSeason(w, k, P); playSeason(w, div, P);
+  const down = k.history[k.history.length - 1].table.slice(-3).map((r) => r.clubId);
+  const up = div.history[div.history.length - 1].table.slice(0, 3).map((r) => r.clubId);
+  startNextSeason(w, k);
+  for (const id of down) assert.ok(div.clubIds.includes(id) && !k.clubIds.includes(id));
+  for (const id of up) assert.ok(k.clubIds.includes(id) && !div.clubIds.includes(id));
+  assert.equal(k.clubIds.length, 20); assert.equal(div.clubIds.length, 20);
+  assert.equal(k.season.label, div.season.label);
+  // Daffers Cup: 100 clubs, leagues enter in round 3 (relegated clubs included), 99 matches
+  startNextSeason(w, daf);
+  const groups = entryGroups(w, daf);
+  assert.equal(daf.season.clubIds.length, 100);
+  assert.deepEqual(groups.map((g) => [g.label, g.round, g.ids.length]), [['Division 2', 3, 20], ['Kronliga', 3, 20], ['Geko non-league (smallest)', 1, 24], ['Geko non-league', 2, 36]]);
+  for (const id of down) assert.ok(groups[0].ids.includes(id));
+  playSeason(w, daf, P);
+  const per = {}; for (const t of daf.season.ties) per[t.round] = (per[t.round] || 0) + 1;
+  assert.deepEqual(per, { 1: 12, 2: 24, 3: 32, 4: 16, 5: 8, 6: 4, 7: 2, 8: 1 });
 });

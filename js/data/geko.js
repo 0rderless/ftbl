@@ -5,6 +5,7 @@ import { generateSquad, SMALL_SQUAD } from './generate.js';
 import { BADGE_PRESETS, LEAGUE_LOGO_PRESETS } from '../ui/badge.js';
 import { FORMATION_KEYS, STYLE_KEYS } from '../engine/tactics.js';
 import { startCupSeason } from '../league/cup.js';
+import { startSeason } from '../league/season.js';
 
 const COLOURS = ['#dc2626', '#1e40af', '#16a34a', '#facc15', '#111827', '#ffffff', '#7c3aed', '#f97316', '#0ea5e9', '#991b1b', '#065f46', '#be123c', '#78350f', '#14b8a6', '#1e3a8a', '#f59e0b'];
 
@@ -113,7 +114,55 @@ export function createDaffersCup(world, kron, { seed = 'geko' } = {}) {
     { round: 3, clubIds: tier2, label: 'Geko regional clubs' },
     { round: 3, leagueId: kron.id, label: kron.name },
   ];
+  cup.config.pool = [...tier3, ...tier2];
   world.leagues[cup.id] = cup;
   startCupSeason(world, cup, 1);
   return cup;
+}
+
+/**
+ * Pick Division 2: Geko clubs outside Kronliga. Daffers Cup winners are in automatically,
+ * then the clubs with the most all-time Daffers Cup points (3 a win, 1 a draw), until there are `size`.
+ */
+export function pickDivision2(world, kron, daffers, size = 20, leaderboard = null) {
+  const inKron = new Set(kron.clubIds);
+  const pool = ((daffers && daffers.config.pool) || Object.keys(world.clubs).filter((id) => world.clubs[id].country === 'GEK'))
+    .filter((id) => world.clubs[id] && !inKron.has(id));
+  const rows = {};
+  for (const r of leaderboard || []) rows[r.clubId] = r;
+  const winners = new Set((daffers ? daffers.history : []).map((h) => h.championId));
+  const pts = (id) => (rows[id] ? rows[id].w * 3 + rows[id].d : 0);
+  const sorted = pool.slice().sort((a, b) =>
+    (winners.has(b) - winners.has(a)) || pts(b) - pts(a) || world.clubs[b].ratings.overall - world.clubs[a].ratings.overall);
+  return sorted.slice(0, size);
+}
+
+/** Create Division 2 below Kronliga (3 up / 3 down) and make the Daffers Cup follow the leagues. */
+export function createDivision2(world, kron, daffers, leaderboard) {
+  const ids = pickDivision2(world, kron, daffers, 20, leaderboard);
+  const div = newLeague({
+    name: 'Division 2', short: 'DIV2', clubIds: ids,
+    logo: { shape: 'shield', pattern: 'split', emblem: 'stars3', c1: '#334155', c2: '#1e293b', c3: '#e2e8f0', trim: '#94a3b8', text: 'none', border: 'double', stars: 0 },
+    config: { legs: 2, startYear: kron.config.startYear, championsSpots: 1, continentalSpots: 0, promotionSpots: 3, relegationSpots: 0, tiebreak: kron.config.tiebreak, daysBetweenRounds: kron.config.daysBetweenRounds },
+  });
+  div.config.upperLeagueId = kron.id;
+  kron.config.lowerLeagueId = div.id;
+  kron.config.relegationSpots = 3;
+  world.leagues[div.id] = div;
+  // Division 2 plays alongside Kronliga's current season, or its next one if Kronliga has just finished
+  const n = kron.season ? kron.season.number + (kron.season.finished ? 1 : 0) : 1;
+  startSeason(div, n);
+  if (daffers && daffers.format === 'knockout') {
+    // pool = every club in Geko; entry rounds follow the leagues so promoted/relegated clubs enter in the right round
+    daffers.config.pool = [...new Set([...(daffers.config.pool || []), ...(daffers.season ? daffers.season.clubIds : []), ...kron.clubIds, ...ids])];
+    daffers.config.entries = [
+      { round: 1, rest: true, weakest: 24, label: 'Geko non-league (smallest)' },
+      { round: 2, rest: true, label: 'Geko non-league' },
+      { round: 3, leagueId: div.id, label: 'Division 2' },
+      { round: 3, leagueId: kron.id, label: 'Kronliga' },
+    ];
+    // the leagues are placed first so they never land in the non-league rounds
+    daffers.config.entries = [daffers.config.entries[2], daffers.config.entries[3], daffers.config.entries[0], daffers.config.entries[1]];
+  }
+  return div;
 }

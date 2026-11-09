@@ -2,7 +2,8 @@
 // (so they always apply to the latest copy and never race the cloud).
 import { createContinentalCup, isCup, startCupSeason } from '../league/cup.js';
 import { startSeason, seasonStarted } from '../league/season.js';
-import { addNewKronligaClubs, createDaffersCup } from '../data/geko.js';
+import { addNewKronligaClubs, createDaffersCup, createDivision2 } from '../data/geko.js';
+import { competitionLeaderboard } from '../league/records.js';
 import { isKnockout } from '../league/cup.js';
 import { realizeContinentalClubs } from '../data/continental.js';
 import { seasonLabel } from '../data/model.js';
@@ -85,6 +86,19 @@ const MIGRATIONS = [
         msgs.push(`Daffers Cup ${cup.season.label} drawn: ${cup.season.clubIds.length} clubs`);
       }
       return { done: true, message: msgs.join(' · ') || null };
+    },
+  },
+  {
+    id: 'division-2-v1',
+    // Requested: Division 2 of 20 Geko clubs (Daffers Cup winners first, then most Daffers Cup points),
+    // 3 up / 3 down with Kronliga; the Daffers Cup entry rounds follow the two leagues.
+    run(world) {
+      const kron = Object.values(world.leagues).find((l) => !isCup(l) && l.name.trim().toLowerCase() === 'kronliga');
+      const daf = Object.values(world.leagues).find((l) => isKnockout(l));
+      if (!kron || !daf) return null;
+      if (kron.config.lowerLeagueId && world.leagues[kron.config.lowerLeagueId]) return { done: true };
+      const div = createDivision2(world, kron, daf, competitionLeaderboard(world, daf));
+      return { done: true, message: `Division 2 ${div.season.label} created: 20 clubs, top 3 go up and Kronliga's bottom 3 go down` };
     },
   },
   {

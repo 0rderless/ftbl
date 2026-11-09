@@ -1,5 +1,6 @@
 import { esc } from '../dom.js';
 import { ICONS, header, clubBadge, ratingChip, emptyState, segmented, leagueLogo } from '../components.js';
+import { entryGroups } from '../../league/knockout.js';
 
 const ui = { q: '', sort: 'name', group: null };
 
@@ -39,9 +40,9 @@ export function render(app) {
   if (g && g.league && g.league.format === 'knockout' && !q) {
     // Daffers Cup: show clubs by the round they enter
     const l = g.league;
-    body = (l.config.entries || []).map((e) => {
-      const list = (e.leagueId ? ((w.leagues[e.leagueId] && w.leagues[e.leagueId].clubIds) || []) : e.clubIds || []).map((id) => w.clubs[id]).filter(Boolean).sort(sorter);
-      return `<h3 class="section-title">${esc(e.label || (e.leagueId && w.leagues[e.leagueId] ? w.leagues[e.leagueId].name : 'Clubs'))} <span class="count">${list.length} · enter round ${e.round}</span></h3>
+    body = entryGroups(w, l).filter((g) => g.ids.length).sort((a, b) => b.round - a.round).map((g) => {
+      const list = g.ids.map((id) => w.clubs[id]).filter(Boolean).sort(sorter);
+      return `<h3 class="section-title">${esc(g.label || 'Clubs')} <span class="count">${list.length} · enter round ${g.round}</span></h3>
         <div class="club-grid">${list.map((c) => card(w, c, counts)).join('')}</div>`;
     }).join('');
   } else {
