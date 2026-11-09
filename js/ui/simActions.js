@@ -2,7 +2,7 @@
 import { playRound, playFixture, playSeason, currentRound, totalRounds, startNextSeason, pyramid } from '../league/season.js';
 import { roundLabel, pendingQualifiers, startNextCupSeason } from '../league/cup.js';
 import { clubBadge, leagueLogo } from './components.js';
-import { esc } from './dom.js';
+import { esc, sheet } from './dom.js';
 
 function overlay(html, cls = '') {
   const el = document.createElement('div');
@@ -96,11 +96,14 @@ export async function nextSeason(app, leagueId) {
   if (league.type === 'cup') {
     const pending = pendingQualifiers(app.world, league);
     if (pending.length) {
-      const names = pending.map((l) => l.name).join(', ');
-      const ok = await app.confirm(`The top clubs of ${names} qualify for the next ${league.name}, but ${names} hasn't finished its season yet. Simulate the rest of it now?`, { ok: 'Simulate & continue', title: 'Qualifiers not decided' });
-      if (!ok) return;
-      app.act((w) => { for (const l of pending) if (l.season && !l.season.finished) playSeason(w, w.leagues[l.id], app.params()); });
-      if (pendingQualifiers(app.world, league).length) { app.toast(`Finish the ${names} season first, then try again`, 'info'); return; }
+      const names = pending.map((l) => `${l.name} ${l.season.label}`).join(', ');
+      const choice = await sheet(`<h3 class="sheet-title">Qualifiers still playing</h3>
+        <p class="sheet-text">The next ${esc(league.name)} takes its qualifiers from the final table of ${esc(names)}, which isn't finished yet.</p>
+        <div class="wg-options"><button class="btn primary" data-sheet="sim">Finish ${esc(pending.map((l) => l.name).join(', '))} first</button>
+        <button class="btn" data-sheet="latest">Use the latest finished table instead</button></div>
+        <div class="sheet-actions one"><button class="btn ghost" data-sheet="cancel">Cancel</button></div>`);
+      if (!choice || choice === 'cancel') return;
+      if (choice === 'sim') app.act((w) => { for (const l of pending) playSeason(w, w.leagues[l.id], app.params()); });
     }
     const ok2 = app.act((w) => { startNextCupSeason(w, w.leagues[leagueId]); return true; });
     if (ok2) {

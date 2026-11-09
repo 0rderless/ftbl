@@ -60,14 +60,32 @@ function association(world, clubId) {
 }
 
 /** Who plays in the next season: league qualifiers + continental regulars. */
-export function cupEntrants(world, cup, override = null) {
+/** "2040/41" -> "2039/40" */
+export function previousLabel(label) {
+  const y = parseInt(String(label).slice(0, 4), 10);
+  if (!Number.isFinite(y)) return null;
+  return `${y - 1}/${String(y % 100).padStart(2, '0')}`;
+}
+
+/**
+ * The league table a cup season's qualifiers come from: the league season before
+ * the cup season (cup 2040/41 <- league 2039/40). If that table doesn't exist yet,
+ * the most recent finished table is used, so a new cup season is never blocked.
+ */
+export function qualifyingTable(league, cupLabel) {
+  if (!league || !league.history.length) return null;
+  const want = cupLabel && previousLabel(cupLabel);
+  return (want && league.history.find((h) => h.label === want)) || league.history[league.history.length - 1];
+}
+
+export function cupEntrants(world, cup, override = null, forLabel = null) {
   const size = cup.config.size || 32;
   const qualifiers = override ? override.qualifiers.filter((id) => world.clubs[id]) : [];
   const qualifiedFrom = override ? { ...override.qualifiedFrom } : {};
   const reserves = [];
   for (const { leagueId, spots } of override ? [] : cup.config.qualifiers || []) {
     const l = world.leagues[leagueId];
-    const h = l && l.history[l.history.length - 1];
+    const h = qualifyingTable(l, forLabel);
     if (!h) continue;
     qualifiedFrom[leagueId] = h.label;
     const order = h.table.map((r) => r.clubId).filter((id) => world.clubs[id]);
@@ -105,7 +123,7 @@ export function startCupSeason(world, cup, number = 1, seed, override = null) {
   if (isKnockout(cup)) return startKnockoutSeason(world, cup, number, seed);
   const s = seed || randomSeed();
   const rng = new RNG('draw|' + s);
-  const { field, qualifiers, qualifiedFrom } = cupEntrants(world, cup, override);
+  const { field, qualifiers, qualifiedFrom } = cupEntrants(world, cup, override, seasonLabel(cup.config.startYear, number));
   if (field.length < 8) throw new Error('Not enough clubs for the cup');
   const groups = drawGroups(world, field, rng);
   const fixtures = [];
@@ -272,14 +290,16 @@ export function finishCupSeason(world, cup) {
 }
 
 /** Leagues whose qualifying season hasn't finished since the current cup season was drawn. */
+/**
+ * Leagues whose qualifying table for the NEXT cup season is still being played
+ * (e.g. the next Champions League needs Kronliga 2040/41 and that season is in progress).
+ * Only used to offer finishing it first — never to block.
+ */
 export function pendingQualifiers(world, cup) {
-  if (isKnockout(cup)) return [];
-  const from = (cup.season && cup.season.qualifiedFrom) || {};
-  return (cup.config.qualifiers || []).map((q) => world.leagues[q.leagueId]).filter((l) => {
-    if (!l) return false;
-    const h = l.history[l.history.length - 1];
-    return !h || h.label === from[l.id];
-  });
+  if (isKnockout(cup) || !cup.season) return [];
+  const want = previousLabel(seasonLabel(cup.config.startYear, cup.season.number + 1));
+  return (cup.config.qualifiers || []).map((q) => world.leagues[q.leagueId]).filter((l) =>
+    l && !l.history.some((h) => h.label === want) && l.season && l.season.label === want && !l.season.finished);
 }
 
 export function startNextCupSeason(world, cup) {

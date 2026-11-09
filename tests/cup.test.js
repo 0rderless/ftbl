@@ -103,20 +103,39 @@ test('extra time and penalties happen at believable rates over many ties', () =>
   assert.ok(pens > 0 && pens <= et);
 });
 
-test('next season: the new league top 3 qualify; waits for the league to finish', () => {
-  const { w, k } = worldWithKronliga();
-  const { cup } = createContinentalCup(w, { qualifiers: [{ leagueId: k.id, spots: 3 }] });
+test('next season: qualifiers come from the league season before; offers (never forces) finishing it', () => {
+  const { w, k } = worldWithKronliga(); // Kronliga 2026/27 finished, 2027/28 in progress
+  const { cup } = createContinentalCup(w, { qualifiers: [{ leagueId: k.id, spots: 3 }], startYear: 2027 });
+  assert.equal(cup.season.label, '2027/28');
+  assert.deepEqual(cup.season.qualifiers, k.history[0].table.slice(0, 3).map((r) => r.clubId), 'UCL 2027/28 <- Kronliga 2026/27');
   playSeason(w, cup, P);
-  assert.deepEqual(pendingQualifiers(w, cup).map((l) => l.id), [k.id], 'Kronliga still in progress');
+  assert.deepEqual(pendingQualifiers(w, cup).map((l) => l.id), [k.id], 'next UCL needs Kronliga 2027/28, still in progress');
   playSeason(w, k, P);
   assert.deepEqual(pendingQualifiers(w, cup), []);
   const newTop3 = k.history[1].table.slice(0, 3).map((r) => r.clubId);
   startNextSeason(w, cup);
-  assert.equal(cup.season.number, 2);
-  assert.deepEqual(cup.season.qualifiers, newTop3);
+  assert.equal(cup.season.label, '2028/29');
+  assert.deepEqual(cup.season.qualifiers, newTop3, 'UCL 2028/29 <- Kronliga 2027/28');
   assert.equal(cup.season.clubIds.length, 32);
-  const old = k.history[0].table.slice(0, 3).map((r) => r.clubId).filter((id) => !newTop3.includes(id));
-  for (const id of old) assert.ok(!cup.season.clubIds.includes(id), 'previous qualifiers who missed out are gone');
+});
+
+test('never stuck: league played ahead of the cup (the reported bug)', () => {
+  const { w, k } = worldWithKronliga();
+  const { cup } = createContinentalCup(w, { qualifiers: [{ leagueId: k.id, spots: 3 }], startYear: 2027 });
+  // play Kronliga 2027/28 to the end BEFORE finishing UCL 2027/28 (Kronliga is now ahead)
+  playSeason(w, k, P);
+  playSeason(w, cup, P);
+  assert.deepEqual(pendingQualifiers(w, cup), [], 'nothing to wait for');
+  startNextSeason(w, cup);
+  assert.equal(cup.season.label, '2028/29');
+  assert.deepEqual(cup.season.qualifiers, k.history.find((h) => h.label === '2027/28').table.slice(0, 3).map((r) => r.clubId));
+  // and even when the needed table is mid-season, starting anyway uses the latest finished table
+  startNextSeason(w, k); playRound(w, k, P); // Kronliga 2028/29 in progress
+  playSeason(w, cup, P);
+  assert.deepEqual(pendingQualifiers(w, cup).map((l) => l.id), [k.id]);
+  startNextSeason(w, cup); // user chose "use the latest finished table"
+  assert.equal(cup.season.label, '2029/30');
+  assert.deepEqual(cup.season.qualifiers, k.history[k.history.length - 1].table.slice(0, 3).map((r) => r.clubId));
 });
 
 test('cup seasons are reproducible from the seed', async () => {
