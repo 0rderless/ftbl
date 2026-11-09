@@ -119,18 +119,18 @@ export const actions = {
     const data = { ...draft, short: draft.short || makeShort(draft.name) };
     if (data.lineup) data.lineup = { ...data.lineup, formation: data.tactics.formation };
     if (id) {
-      if (app.act((w) => updateClub(w, id, data), 'Club saved')) { draft = null; draftKey = null; app.nav(`#/club/${id}`); }
+      if (app.act((w) => updateClub(w, id, data), 'Club saved')) { draft = null; draftKey = null; app.nav(`#/club/${id}`, { replace: true }); }
     } else {
       delete data.id;
       const c = app.act((w) => createClub(w, data, { withSquad: ui.squad }), 'Club created');
-      if (c) { draft = null; draftKey = null; app.nav(`#/club/${c.id}`); }
+      if (c) { draft = null; draftKey = null; app.nav(`#/club/${c.id}`, { replace: true }); }
     }
   },
   async delete(app) {
     const id = app.route.params[0];
     if (await app.confirm('The club will be removed. Its players become free agents and league history keeps its name.', { ok: 'Delete club', danger: true })) {
       const ok = app.act((w) => { deleteClub(w, id); return true; }, 'Club deleted');
-      if (ok) { draft = null; draftKey = null; app.nav('#/clubs'); }
+      if (ok) { draft = null; draftKey = null; app.nav('#/clubs', { replace: true }); }
     }
   },
 };

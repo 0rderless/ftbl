@@ -78,18 +78,18 @@ export const actions = {
     if (!draft.name.trim()) { app.toast('Give the player a name', 'error'); return; }
     const data = { ...draft, clubId: draft.clubId || null };
     if (id) {
-      if (app.act((w) => updatePlayer(w, id, data), 'Player saved')) { draft = null; draftKey = null; app.nav(`#/player/${id}`); }
+      if (app.act((w) => updatePlayer(w, id, data), 'Player saved')) { draft = null; draftKey = null; app.nav(`#/player/${id}`, { replace: true }); }
     } else {
       delete data.id;
       const p = app.act((w) => createPlayer(w, data), 'Player created');
-      if (p) { draft = null; draftKey = null; app.nav(`#/player/${p.id}`); }
+      if (p) { draft = null; draftKey = null; app.nav(`#/player/${p.id}`, { replace: true }); }
     }
   },
   async delete(app) {
     const id = app.route.params[0];
     if (await app.confirm('This player will be deleted. Past match reports will show them as "Unknown".', { ok: 'Delete player', danger: true })) {
       app.act((w) => deletePlayer(w, id), 'Player deleted');
-      draft = null; draftKey = null; app.nav('#/players');
+      draft = null; draftKey = null; app.nav('#/players', { replace: true });
     }
   },
 };

@@ -75,6 +75,7 @@ export const NATIONS = [
   ['SEN', 'Senegal', '🇸🇳', 'waf'], ['CIV', "Côte d'Ivoire", '🇨🇮', 'waf'], ['MLI', 'Mali', '🇲🇱', 'waf'], ['CMR', 'Cameroon', '🇨🇲', 'waf'],
   ['MAR', 'Morocco', '🇲🇦', 'ar'], ['ALG', 'Algeria', '🇩🇿', 'ar'], ['EGY', 'Egypt', '🇪🇬', 'ar'], ['TUN', 'Tunisia', '🇹🇳', 'ar'],
   ['TUR', 'Türkiye', '🇹🇷', 'tr'], ['JPN', 'Japan', '🇯🇵', 'jp'], ['KOR', 'South Korea', '🇰🇷', 'kr'],
+  ['GEK', 'Geko', '🦎', 'en'],
 ].map(([code, name, flag, pool]) => ({ code, name, flag, pool }));
 
 export const NATION_BY_CODE = Object.fromEntries(NATIONS.map((n) => [n.code, n]));

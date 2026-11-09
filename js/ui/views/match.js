@@ -4,7 +4,8 @@ import { currentRound, clubForm, playersByClub } from '../../league/season.js';
 import { teamStrength } from '../../engine/strength.js';
 import { matchPreview, formScore } from '../../engine/match.js';
 import { FORMATIONS, STYLES } from '../../engine/tactics.js';
-import { simFixture } from '../simActions.js';
+import { simFixture, afterPlay } from '../simActions.js';
+import { liveSimMatch } from '../liveMatch.js';
 import { roundLabel } from '../../league/cup.js';
 import { textColorOn } from '../badge.js';
 
@@ -20,7 +21,7 @@ export function render(app, leagueId, fixtureId) {
   const goals = (side) => r ? r.events.filter((e) => e.type === 'goal' && e.side === side) : [];
   const scorerLine = (side) => goals(side).map((e) => `<span>${esc(pname(w, e.pid))} ${e.minute}'${e.added ? '+' + e.added : ''}${e.kind === 'pen' ? ' (P)' : e.kind === 'own' ? ' (OG)' : ''}</span>`).join('');
   const board = `<section class="scoreboard" style="--hc:${h.colors.primary};--ac:${a.colors.primary}">
-    <small class="sb-meta">${esc(l.name)} · ${esc(l.type === 'cup' ? roundLabel(f.round) : `Matchday ${f.round}`)} · ${esc(f.neutral ? (f.venue || 'Neutral venue') : h.stadium.name)}</small>
+    <small class="sb-meta">${esc(l.name)} · ${esc(l.type === 'cup' ? roundLabel(f.round, l) : `Matchday ${f.round}`)} · ${esc(f.neutral ? (f.venue || 'Neutral venue') : h.stadium.name)}</small>
     <div class="sb-main">
       <a class="sb-team" href="#/club/${h.id}">${clubBadge(h, 64)}<b>${esc(h.name)}</b></a>
       <div class="sb-score">${r ? `<span>${r.hg}</span><i>-</i><span>${r.ag}</span>` : '<em>vs</em>'}<small>${r ? (r.et ? 'After extra time' : 'Full time') : 'Not played'}</small>${r && r.pens ? `<small class="sb-pens">${r.pens.home}–${r.pens.away} on penalties</small>` : ''}${tieLine(l, f)}</div>
@@ -210,11 +211,16 @@ function preview(app, l, f) {
     <div class="card"><h3 class="card-title">Unavailable</h3><p>${esc(h.short)}: ${unavailable(h)}</p><p>${esc(a.short)}: ${unavailable(a)}</p></div>
     ${H.lineup ? `<h3 class="section-title row between"><span>${h.lineup && h.lineup.manual ? 'Your' : 'Predicted'} ${esc(h.short)} XI</span><a class="link" href="#/club/${h.id}/squad">Edit line-up ›</a></h3>${pitchHTML(app, H.lineup, h.kits.home)}` : ''}
     ${A.lineup ? `<h3 class="section-title row between"><span>${a.lineup && a.lineup.manual ? 'Your' : 'Predicted'} ${esc(a.short)} XI</span><a class="link" href="#/club/${a.id}/squad">Edit line-up ›</a></h3>${pitchHTML(app, A.lineup, clashes(h.kits.home, a.kits.home) ? a.kits.away : a.kits.home)}` : ''}
-    ${canPlay ? `<div class="sim-bar"><button class="btn primary block" data-act="sim">${ICONS.play} Simulate this match</button></div>` : `<p class="hint center">${ICONS.info} This match can be played once matchday ${f.round} is the current matchday.</p>`}`;
+    ${canPlay ? `<div class="sim-bar"><button class="btn primary" data-act="live">${ICONS.play} Sim match</button><button class="btn" data-act="sim">Instant result</button></div>` : `<p class="hint center">${ICONS.info} This match can be played once matchday ${f.round} is the current matchday.</p>`}`;
 }
 
 export const actions = {
   seg(app, el) { ui[el.dataset.name] = el.dataset.value; app.render(); },
+  live(app) {
+    const [lid, fid] = app.route.params;
+    ui.tab = 'summary';
+    liveSimMatch(app, lid, fid, { onDone: () => afterPlay(app, lid) });
+  },
   sim(app) {
     const [lid, fid] = app.route.params;
     ui.tab = 'summary';

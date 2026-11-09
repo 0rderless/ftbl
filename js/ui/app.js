@@ -55,7 +55,17 @@ export function createApp(store, root, sync = null) {
     view: null,
     toast,
     confirm: confirmDialog,
-    nav(hash) { if (location.hash === hash) app.render(); else location.hash = hash; },
+    /** Navigate. replace: swap the current history entry (used for tabs and after saving forms). */
+    nav(hash, { replace = false } = {}) {
+      if (location.hash === hash) { app.render(); return; }
+      if (replace) { app.replacing = true; location.replace(location.pathname + location.search + hash); } else location.hash = hash;
+    },
+    // our own record of where the user has been, so Back returns to the previous screen
+    stack: [location.hash || '#/'],
+    back(fallback = '#/') {
+      if (app.stack.length > 1) history.back();
+      else { app.stack = [fallback]; app.replacing = true; location.replace(location.pathname + location.search + fallback); }
+    },
     /** run a world mutation; ActionErrors become toasts. Returns result or undefined. */
     act(fn, msg) {
       try {
@@ -112,6 +122,10 @@ export function createApp(store, root, sync = null) {
 
   // delegated events
   viewEl.addEventListener('click', (e) => {
+    const backEl = e.target.closest('[data-back]');
+    if (backEl) { e.preventDefault(); app.back(backEl.dataset.back); return; }
+    const tabEl = e.target.closest('a.tab');
+    if (tabEl) { e.preventDefault(); app.nav(tabEl.getAttribute('href'), { replace: true }); return; }
     const el = e.target.closest('[data-act]');
     if (!el || !viewEl.contains(el)) return;
     const fn = app.view && app.view.actions && app.view.actions[el.dataset.act];
@@ -130,7 +144,16 @@ export function createApp(store, root, sync = null) {
     app.render({ silent: true });
   });
 
-  window.addEventListener('hashchange', () => app.render());
+  window.addEventListener('hashchange', () => {
+    const h = location.hash || '#/';
+    const st = app.stack;
+    if (app.replacing) st[st.length - 1] = h;
+    else if (st.length > 1 && st[st.length - 2] === h) st.pop();
+    else st.push(h);
+    if (st.length > 60) st.splice(0, st.length - 60);
+    app.replacing = false;
+    app.render();
+  });
   if (sync) sync.onChange(() => {
     document.querySelectorAll('[data-sync-status]').forEach((el) => { el.outerHTML = syncBadge(sync); });
   });

@@ -381,7 +381,8 @@ function onPitchAtEnd(result, side) {
 }
 
 function slotOfPlayer(result, side, pid, playersById) {
-  const s = result.lineups[side].xi.find((x) => x.pid === pid);
+  const lu = result.lineups && result.lineups[side];
+  const s = lu && lu.xi.find((x) => x.pid === pid);
   return s ? s.slot : (playersById[pid] ? playersById[pid].position : 'CM');
 }
 
@@ -437,7 +438,8 @@ export function playPenalties(o, result) {
   for (const p of [...(o.home.players || []), ...(o.away.players || [])]) playersById[p.id] = p;
   const takers = (side) => {
     const ids = onPitchAtEnd(result, side);
-    const gk = result.lineups[side].xi.find((x) => x.slot === 'GK');
+    const lu = result.lineups && result.lineups[side];
+    const gk = lu && lu.xi.find((x) => x.slot === 'GK');
     const sorted = ids.filter((id) => !gk || id !== gk.pid).sort((a, b) => attr(playersById[b], 'shooting', 60) - attr(playersById[a], 'shooting', 60));
     if (gk && ids.includes(gk.pid)) sorted.push(gk.pid);
     return sorted.length ? sorted : [null];

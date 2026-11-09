@@ -10,6 +10,7 @@ import { newLeague, seasonLabel } from '../data/model.js';
 import { addContinentalClubs } from '../data/continental.js';
 import { LEAGUE_LOGO_PRESETS } from '../ui/badge.js';
 import { playExtraTime, playPenalties } from '../engine/match.js';
+import { startKnockoutSeason, advanceKnockout, knockoutStatus, koRoundName, koShortName } from './knockout.js';
 
 export const STAGES = [
   { key: 'groups', label: 'Group stage', short: 'Groups', rounds: [1, 2, 3, 4, 5, 6] },
@@ -22,8 +23,27 @@ export const CUP_ROUNDS = 13;
 const GROUP_NAMES = 'ABCDEFGH';
 
 export const isCup = (l) => !!l && l.type === 'cup';
-export const stageOfRound = (r) => STAGES.find((s) => s.rounds.includes(r)) || STAGES[0];
-export function roundLabel(r) {
+export const isKnockout = (l) => isCup(l) && l.format === 'knockout';
+export function stageOfRound(r, league) {
+  if (isKnockout(league)) {
+    const label = koRoundName(league, r);
+    return { key: label === 'Final' ? 'final' : `r${r}`, label, short: koShortName(league, r), rounds: [r] };
+  }
+  return STAGES.find((s) => s.rounds.includes(r)) || STAGES[0];
+}
+export function cupTotalRounds(league) {
+  return isKnockout(league) ? (league.season ? league.season.totalRounds : 0) : CUP_ROUNDS;
+}
+/** Short text for "Play …" buttons. */
+export function playLabel(league, r) {
+  if (!isCup(league)) return `matchday ${r}`;
+  if (isKnockout(league)) return koShortName(league, r) === 'Final' ? 'Final' : koRoundName(league, r);
+  const st = stageOfRound(r);
+  if (st.key === 'groups') return `MD ${r}`;
+  return st.short + (st.key === 'final' ? '' : st.rounds[0] === r ? ' leg 1' : ' leg 2');
+}
+export function roundLabel(r, league) {
+  if (isKnockout(league)) return koRoundName(league, r);
   const st = stageOfRound(r);
   if (st.key === 'groups') return `Group stage · Matchday ${r}`;
   if (st.key === 'final') return 'Final';
@@ -82,6 +102,7 @@ function drawGroups(world, field, rng) {
 }
 
 export function startCupSeason(world, cup, number = 1, seed, override = null) {
+  if (isKnockout(cup)) return startKnockoutSeason(world, cup, number, seed);
   const s = seed || randomSeed();
   const rng = new RNG('draw|' + s);
   const { field, qualifiers, qualifiedFrom } = cupEntrants(world, cup, override);
@@ -101,6 +122,7 @@ export function startCupSeason(world, cup, number = 1, seed, override = null) {
 
 export function groupTables(cup) {
   const s = cup.season;
+  if (!s.groups) return [];
   return s.groups.map((g) => ({
     name: g.name,
     rows: computeTable(g.clubIds, s.fixtures.filter((f) => f.group === g.name), { pointsWin: 3, pointsDraw: 1, tiebreak: 'h2h' }),
@@ -166,6 +188,7 @@ function winnersOf(cup, stage) {
 export function advanceCup(world, cup) {
   const s = cup.season;
   if (!s || s.finished) return;
+  if (isKnockout(cup)) { advanceKnockout(world, cup, finishCupSeason); return; }
   const rng = new RNG(`ko|${s.seed}|${s.fixtures.length}`);
   const has = (k) => s.fixtures.some((f) => f.stage === k);
   const done = (k) => has(k) && s.fixtures.filter((f) => f.stage === k).every((f) => f.result);
@@ -250,6 +273,7 @@ export function finishCupSeason(world, cup) {
 
 /** Leagues whose qualifying season hasn't finished since the current cup season was drawn. */
 export function pendingQualifiers(world, cup) {
+  if (isKnockout(cup)) return [];
   const from = (cup.season && cup.season.qualifiedFrom) || {};
   return (cup.config.qualifiers || []).map((q) => world.leagues[q.leagueId]).filter((l) => {
     if (!l) return false;
@@ -297,6 +321,7 @@ export function createContinentalCup(world, { name = 'Champions League', short =
 
 /** Short status of a club in the current cup season, e.g. "Group B · 2nd", "In QF", "Out (R16)", "Winners". */
 export function cupClubStatus(cup, clubId) {
+  if (isKnockout(cup)) return knockoutStatus(cup, clubId);
   const s = cup.season;
   if (!s || !s.clubIds.includes(clubId)) return 'Not qualified';
   const ties = s.ties.filter((t) => t.a === clubId || t.b === clubId);

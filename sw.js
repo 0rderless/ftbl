@@ -1,5 +1,5 @@
 // Offline support: network-first for app files (so updates arrive), cache fallback when offline.
-const VERSION = 'ftbl-1b6e7299ee';
+const VERSION = 'ftbl-fa61d89aa8';
 const ASSETS = [
   './',
   './css/app.css',
@@ -17,6 +17,7 @@ const ASSETS = [
   './js/core/store.js',
   './js/data/continental.js',
   './js/data/demo.js',
+  './js/data/geko.js',
   './js/data/generate.js',
   './js/data/model.js',
   './js/data/nations.js',
@@ -27,6 +28,7 @@ const ASSETS = [
   './js/engine/tactics.js',
   './js/league/cup.js',
   './js/league/fixtures.js',
+  './js/league/knockout.js',
   './js/league/records.js',
   './js/league/season.js',
   './js/league/table.js',
@@ -37,6 +39,7 @@ const ASSETS = [
   './js/ui/components.js',
   './js/ui/dom.js',
   './js/ui/kit.js',
+  './js/ui/liveMatch.js',
   './js/ui/simActions.js',
   './js/ui/views/club.js',
   './js/ui/views/clubEdit.js',

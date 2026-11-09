@@ -135,10 +135,10 @@ test('cup seasons are reproducible from the seed', async () => {
 test('migration adds the Champions League once, keeps every existing record, and is idempotent', () => {
   const { w, k } = worldWithKronliga();
   const before = JSON.parse(JSON.stringify(w));
-  assert.equal(pendingMigrations(w).length, 4);
+  assert.equal(pendingMigrations(w).length, 5);
   const msgs = runMigrations(w);
-  assert.equal(msgs.length, 1, 'only the Champions League message (clubs are already real)');
-  const cups = Object.values(w.leagues).filter(isCup);
+  assert.equal(msgs.length, 2, 'Champions League + Daffers Cup messages (continental clubs are already real)');
+  const cups = Object.values(w.leagues).filter((l) => isCup(l) && l.format !== 'knockout');
   assert.equal(cups.length, 1);
   assert.equal(cups[0].name, 'Champions League');
   assert.equal(cups[0].season.label, k.season.label, 'cup season matches the current league season');
@@ -151,11 +151,11 @@ test('migration adds the Champions League once, keeps every existing record, and
   assert.deepEqual({ ...ka.config, continentalCupId: undefined, continentalSpots: undefined }, { ...kb.config, continentalCupId: undefined, continentalSpots: undefined });
   assert.equal(pendingMigrations(w).length, 0);
   assert.deepEqual(runMigrations(w), []);
-  assert.equal(Object.values(w.leagues).filter(isCup).length, 1);
+  assert.equal(Object.values(w.leagues).filter((l) => isCup(l) && l.format !== 'knockout').length, 1);
   // a world without Kronliga history is left alone (and retried later)
   const empty = emptyWorld();
   assert.deepEqual(runMigrations(empty), []);
-  assert.equal(pendingMigrations(empty).length, 1, 'Champions League upgrade retried later');
+  assert.equal(pendingMigrations(empty).length, 2, 'Champions League and Kronliga/Daffers upgrades wait for a Kronliga');
 });
 
 test('league table marks exactly the top 3 as Champions League places', async () => {
@@ -197,7 +197,7 @@ test('cup season is labelled as the season after the one its qualifiers came fro
   const { w, k } = worldWithKronliga();
   playSeason(w, k, P); // league season 2 finished before the upgrade runs
   runMigrations(w);
-  const cup = Object.values(w.leagues).find(isCup);
+  const cup = Object.values(w.leagues).find((l) => isCup(l) && l.format !== 'knockout');
   const from = Object.values(cup.season.qualifiedFrom)[0];
   assert.equal(from, k.history[k.history.length - 1].label);
   assert.notEqual(cup.season.label, from);
@@ -214,7 +214,9 @@ test('cup season is labelled as the season after the one its qualifiers came fro
 test('2026/27 fresh start: both competitions restart with no history; clubs, players and line-ups kept', () => {
   const { w, k } = worldWithKronliga();
   runMigrations(w); // adds the Champions League (fresh start is a no-op for a brand-new cup)
-  const cup = Object.values(w.leagues).find(isCup);
+  const cup = Object.values(w.leagues).find((l) => isCup(l) && l.format !== 'knockout');
+  // (the fresh start happened before the Daffers Cup existed on the user's device)
+  for (const l of Object.values(w.leagues)) if (l.format === 'knockout') delete w.leagues[l.id];
   assert.equal(cup.season.number, 1);
   playSeason(w, cup, P);
   playSeason(w, k, P);

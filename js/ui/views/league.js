@@ -3,8 +3,9 @@ import { ICONS, header, tabs, leagueLogo, clubBadge, formPills, segmented, empty
 import { computeTable, zoneFor, emptyRow } from '../../league/table.js';
 import { currentRound, totalRounds, clubForm, playerStats, topList, clubStreaks, matchHighlights, seasonStarted } from '../../league/season.js';
 import { leagueRecords } from '../../league/records.js';
-import { simMatchday, simFixture, simSeason, nextSeason } from '../simActions.js';
-import { renderCup } from './cup.js';
+import { simMatchday, simSeason, nextSeason, afterPlay } from '../simActions.js';
+import { liveSimMatch } from '../liveMatch.js';
+import { renderCup, activeWins } from './cup.js';
 import { winGameFlow } from '../winGame.js';
 import { setForcedWins } from '../../league/cup.js';
 
@@ -77,9 +78,10 @@ function fixturesTab(app, l) {
       <button class="icon-btn" data-act="round" data-v="${r + 1}" ${r >= total ? 'disabled' : ''} aria-label="Next matchday">${ICONS.chev}</button>
     </div>
     <div class="card fx-list">${rows}${byes.length ? `<p class="bye">Rest: ${byes.map((id) => esc(w.clubs[id] ? w.clubs[id].name : '?')).join(', ')}</p>` : ''}</div>
-    ${!s.finished ? `<div class="sim-bar">
-      <button class="btn primary" data-act="play" data-id="${l.id}">${ICONS.play} Play matchday ${cr}</button>
-      <button class="btn" data-act="season" data-id="${l.id}">${ICONS.ff} Sim season</button>
+    ${!s.finished ? `${activeWins(app, l)}<div class="sim-bar">
+      <button class="btn primary" data-act="play" data-id="${l.id}">${ICONS.play} Play MD ${cr}</button>
+      <button class="btn win-btn" data-act="winGame" data-id="${l.id}">${ICONS.trophy} Win game</button>
+      <button class="btn" data-act="season" data-id="${l.id}" aria-label="Simulate season">${ICONS.ff}</button>
     </div>` : ''}
     ${!seasonStarted(l) ? `<p class="hint">${ICONS.info} Fixtures were generated with seed <code>${esc(s.seed)}</code>. Same seed + same clubs + same settings = the same season.</p>` : `<p class="hint">Season seed <code>${esc(s.seed)}</code></p>`}`;
 }
@@ -260,8 +262,7 @@ export const actions = {
   round(app, el) { const l = app.world.leagues[app.route.params[0]]; ui.round[l.id] = Number(el.dataset.v); app.render(); },
   simOne(app, el) {
     const id = app.route.params[0];
-    const f = simFixture(app, id, el.dataset.id);
-    if (f && f.result) app.toast('Full time', 'ok');
+    liveSimMatch(app, id, el.dataset.id, { onDone: () => afterPlay(app, id) });
   },
   play(app, el) { ui.round[el.dataset.id] = null; simMatchday(app, el.dataset.id); },
   season(app, el) { ui.round[el.dataset.id] = null; simSeason(app, el.dataset.id); },

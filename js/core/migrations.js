@@ -1,7 +1,9 @@
 // One-time data upgrades that run on the device after the newest data has loaded
 // (so they always apply to the latest copy and never race the cloud).
 import { createContinentalCup, isCup, startCupSeason } from '../league/cup.js';
-import { startSeason } from '../league/season.js';
+import { startSeason, seasonStarted } from '../league/season.js';
+import { addNewKronligaClubs, createDaffersCup } from '../data/geko.js';
+import { isKnockout } from '../league/cup.js';
 import { realizeContinentalClubs } from '../data/continental.js';
 import { seasonLabel } from '../data/model.js';
 
@@ -12,7 +14,7 @@ const MIGRATIONS = [
     run(world) {
       const kron = Object.values(world.leagues).find((l) => !isCup(l) && l.name.trim().toLowerCase() === 'kronliga' && l.history.length);
       if (!kron) return null; // try again later
-      if (Object.values(world.leagues).some((l) => isCup(l))) return { done: true };
+      if (Object.values(world.leagues).some((l) => isCup(l) && l.format !== 'knockout')) return { done: true };
       // the cup runs alongside the league season after the one its qualifiers came from
       const startYear = kron.config.startYear + ((kron.season && kron.season.number) || 1) - 1 + (kron.season && kron.season.finished ? 1 : 0);
       const { cup, dropped } = createContinentalCup(world, { name: 'Champions League', short: 'UCL', qualifiers: [{ leagueId: kron.id, spots: 3 }], startYear, seed: 'ucl-' + kron.id });
@@ -35,7 +37,7 @@ const MIGRATIONS = [
     // Clubs, players, line-ups and settings are kept. Only applies to a world that already had the
     // Champions League before this update (new worlds are already fresh).
     run(world, ctx) {
-      const cup = Object.values(world.leagues).find((l) => isCup(l));
+      const cup = Object.values(world.leagues).find((l) => isCup(l) && l.format !== 'knockout');
       const kron = Object.values(world.leagues).find((l) => !isCup(l) && l.name.trim().toLowerCase() === 'kronliga');
       if (!cup || !kron || !ctx.previouslyDone['champions-league-v1']) return { done: true };
       // qualifiers for the new first Champions League: the most recent final Kronliga top 3
@@ -64,11 +66,33 @@ const MIGRATIONS = [
     },
   },
   {
+    id: 'kronliga-20-daffers-v1',
+    // Requested: 8 more Kronliga clubs (mid-table strength) and the Daffers Cup for all 100 Geko clubs.
+    run(world) {
+      const kron = Object.values(world.leagues).find((l) => !isCup(l) && l.name.trim().toLowerCase() === 'kronliga');
+      if (!kron) return null;
+      const msgs = [];
+      const added = addNewKronligaClubs(world);
+      if (added.length) {
+        kron.clubIds = [...kron.clubIds, ...added];
+        if (!seasonStarted(kron)) {
+          startSeason(kron, (kron.season && kron.season.number) || 1);
+          msgs.push(`${added.length} new clubs joined Kronliga for ${kron.season.label}`);
+        } else msgs.push(`${added.length} new clubs join Kronliga from next season`);
+      }
+      if (!Object.values(world.leagues).some((l) => isKnockout(l))) {
+        const cup = createDaffersCup(world, kron, { seed: 'geko-' + kron.id });
+        msgs.push(`Daffers Cup ${cup.season.label} drawn: ${cup.season.clubIds.length} clubs`);
+      }
+      return { done: true, message: msgs.join(' · ') || null };
+    },
+  },
+  {
     id: 'cup-season-label-v1',
     // A cup whose qualifiers came from league season X should be labelled as the season after X.
     run(world) {
       for (const cup of Object.values(world.leagues)) {
-        if (!isCup(cup) || !cup.season || cup.history.length) continue;
+        if (!isCup(cup) || cup.format === 'knockout' || !cup.season || cup.history.length) continue;
         const labels = Object.values(cup.season.qualifiedFrom || {});
         if (labels.includes(cup.season.label)) {
           cup.config.startYear += 1;

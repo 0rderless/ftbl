@@ -6,7 +6,7 @@ import { STYLES } from '../engine/tactics.js';
 import { generateFixtures, roundsCount } from './fixtures.js';
 import { computeTable } from './table.js';
 import { seasonLabel } from '../data/model.js';
-import { isCup, CUP_ROUNDS, resolveKnockout, advanceCup, startNextCupSeason, wouldWinTie } from './cup.js';
+import { isCup, cupTotalRounds, resolveKnockout, advanceCup, startNextCupSeason, wouldWinTie } from './cup.js';
 
 export function playersByClub(world) {
   const map = {};
@@ -46,7 +46,7 @@ export function seasonStarted(league) {
 }
 
 export function totalRounds(league) {
-  if (isCup(league)) return league.season ? CUP_ROUNDS : 0;
+  if (isCup(league)) return cupTotalRounds(league);
   return league.season ? roundsCount(league.season.fixtures) : 0;
 }
 

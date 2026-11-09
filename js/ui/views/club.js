@@ -38,30 +38,49 @@ function bar(label, v) {
   return `<div class="rbar"><span>${label}</span><div class="rbar-track"><i style="width:${v}%"></i></div><b>${v}</b></div>`;
 }
 
+/** Trophy shelf: one item per competition won, using the competition logo. */
+function trophyShelf(app, c, { big = false } = {}) {
+  const w = app.world;
+  const wins = {};
+  for (const h of c.honours) {
+    if (h.type !== 'league' && h.type !== 'cup') continue;
+    const k = h.leagueId || h.leagueName;
+    (wins[k] || (wins[k] = { leagueId: h.leagueId, name: h.leagueName, seasons: [] })).seasons.push(h.season);
+  }
+  const items = Object.values(wins).sort((a, b) => b.seasons.length - a.seasons.length);
+  if (!items.length) return '';
+  return `<div class="shelf ${big ? 'big' : ''}">${items.map((t) => {
+    const l = w.leagues[t.leagueId];
+    return `<div class="shelf-item"><div class="shelf-logo">${l ? leagueLogo(l, big ? 64 : 46) : '<span class="shelf-fallback">🏆</span>'}<b>${t.seasons.length}</b></div><span>${esc(t.name)}</span></div>`;
+  }).join('')}</div>`;
+}
+
 function overviewTab(app, c) {
   const w = app.world;
-  const leagues = Object.values(w.leagues).filter((l) => l.season && l.season.clubIds.includes(c.id));
-  const standings = leagues.map((l) => {
+  const comps = Object.values(w.leagues).filter((l) => l.season && l.season.clubIds.includes(c.id))
+    .sort((a, b) => (a.type === 'cup') - (b.type === 'cup'));
+  const rows = comps.map((l) => {
+    let right;
     if (l.type === 'cup') {
-      return `<a class="card standing" href="#/league/${l.id}/${l.season.ties.length ? 'bracket' : 'groups'}">${leagueLogo(l, 36)}<div><b>${esc(l.name)}</b><small>${esc(l.season.label)}</small></div>
-      <div class="st-pos"><b class="cup-status">${esc(cupClubStatus(l, c.id))}</b></div></a>`;
+      const st = cupClubStatus(l, c.id);
+      right = `<b class="comp-status ${/^Out/.test(st) ? 'out' : st === 'Winners' ? 'won' : ''}">${esc(st)}</b>`;
+    } else {
+      const r = computeTable(l.season.clubIds, l.season.fixtures, l.config).find((x) => x.clubId === c.id);
+      right = `<span class="comp-pos"><b>${r.pos}<sup>${ord(r.pos)}</sup></b><small>${r.pts} pts</small></span>${formPills(clubForm(l, c.id))}`;
     }
-    const t = computeTable(l.season.clubIds, l.season.fixtures, l.config);
-    const r = t.find((x) => x.clubId === c.id);
-    return `<a class="card standing" href="#/league/${l.id}/table">${leagueLogo(l, 36)}<div><b>${esc(l.name)}</b><small>${esc(l.season.label)}</small></div>
-      <div class="st-pos"><b>${r.pos}<sup>${ord(r.pos)}</sup></b><small>${r.pts} pts · ${r.p} played</small></div>${formPills(clubForm(l, c.id))}</a>`;
+    const tab = l.type === 'cup' ? (l.format === 'knockout' || l.season.ties.length ? 'bracket' : 'groups') : 'table';
+    return `<a class="comp-row" href="#/league/${l.id}/${tab}">${leagueLogo(l, 30)}<span class="comp-name"><b>${esc(l.name)}</b><small>${esc(l.season.label)}</small></span>${right}</a>`;
   }).join('');
-  const titles = c.honours.filter((h) => h.type === 'league' || h.type === 'cup').length;
-  return `${standings || '<p class="hint">This club is not in a league yet.</p>'}
+  const shelf = trophyShelf(app, c);
+  return `<div class="card flush">${rows ? `<div class="rank-head">This season</div>${rows}` : '<p class="muted pad-s">Not in any competition.</p>'}</div>
+    <div class="card"><div class="card-title">Trophy cabinet <a href="#/club/${c.id}/honours" class="count link">All honours ›</a></div>${shelf || '<p class="muted">No trophies yet — go win something.</p>'}</div>
     <div class="card"><h3 class="card-title">Ratings</h3>
       ${bar('Overall', c.ratings.overall)}${bar('Attack', c.ratings.att)}${bar('Midfield', c.ratings.mid)}${bar('Defence', c.ratings.def)}${bar('Goalkeeper', c.ratings.gk)}</div>
-    <div class="card"><h3 class="card-title">Tactics</h3>
-      <label class="field"><span>Formation</span><select data-field="formation">${FORMATION_KEYS.map((f) => `<option ${c.tactics.formation === f ? 'selected' : ''}>${f}</option>`).join('')}</select></label>
-      <label class="field"><span>Playing style</span><select data-field="style">${STYLE_KEYS.map((s) => `<option value="${s}" ${c.tactics.style === s ? 'selected' : ''}>${STYLES[s].label}</option>`).join('')}</select></label>
-      <p class="hint">Tactics change line strengths and create match-up advantages, scaled by the Tactical Influence setting.</p></div>
     <div class="card"><h3 class="card-title">Kits</h3><div class="kits">
-      ${['home', 'away', 'third'].map((k) => `<div class="kit-item">${kitSVG(c.kits[k], 76)}<small>${k[0].toUpperCase() + k.slice(1)}</small></div>`).join('')}</div></div>
-    <div class="card"><h3 class="card-title">Trophy cabinet</h3>${titles ? `<p class="trophies">${'🏆'.repeat(Math.min(titles, 20))} <b>${titles}</b> major troph${titles > 1 ? 'ies' : 'y'}</p>` : '<p class="muted">No trophies yet.</p>'}<a href="#/club/${c.id}/honours" class="link">All honours ›</a></div>`;
+      ${['home', 'away', 'third'].map((k) => `<div class="kit-item">${kitSVG(c.kits[k], 72)}<small>${k[0].toUpperCase() + k.slice(1)}</small></div>`).join('')}</div></div>
+    <div class="card"><h3 class="card-title">Tactics</h3>
+      <div class="grid2"><label class="field"><span>Formation</span><select data-field="formation">${FORMATION_KEYS.map((f) => `<option ${c.tactics.formation === f ? 'selected' : ''}>${f}</option>`).join('')}</select></label>
+      <label class="field"><span>Playing style</span><select data-field="style">${STYLE_KEYS.map((s) => `<option value="${s}" ${c.tactics.style === s ? 'selected' : ''}>${STYLES[s].label}</option>`).join('')}</select></label></div></div>`;
 }
 
 function statusOf(ps, pid) {
@@ -164,18 +183,30 @@ function squadTab(app, c) {
 }
 
 function honoursTab(app, c) {
-  const groups = {};
+  const w = app.world;
+  if (!c.honours.length) return emptyState('The cabinet is empty', 'Win a league, a cup or promotion to fill it.');
+  const by = {};
   for (const h of c.honours) {
-    const key = h.type + '|' + h.leagueName;
-    (groups[key] || (groups[key] = { ...h, seasons: [] })).seasons.push(h.season);
+    const k = h.leagueId || h.leagueName;
+    const g = by[k] || (by[k] = { leagueId: h.leagueId, name: h.leagueName, won: [], second: [], promoted: [] });
+    if (h.type === 'league' || h.type === 'cup') g.won.push(h.season);
+    else if (h.type === 'runnerup' || h.type === 'cupfinal') g.second.push(h.season);
+    else if (h.type === 'promotion') g.promoted.push(h.season);
   }
-  const order = { cup: 0, league: 1, cupfinal: 2, promotion: 3, runnerup: 4 };
-  const items = Object.values(groups).sort((a, b) => order[a.type] - order[b.type] || b.seasons.length - a.seasons.length);
-  if (!items.length) return emptyState('The cabinet is empty', 'Win a league title or earn promotion to fill it.');
-  const icon = { league: '🏆', promotion: '⬆️', runnerup: '🥈', cup: '⭐', cupfinal: '🥈' };
-  const title = { league: 'Champions', promotion: 'Promoted', runnerup: 'Runners-up', cup: 'Winners', cupfinal: 'Finalists' };
-  return `<div class="cabinet">${items.map((g) => `<div class="card trophy-card ${g.type}"><div class="tc-icon">${icon[g.type]}</div>
-    <div><small>${title[g.type]}</small><h3>${esc(g.leagueName)}</h3><p>${g.seasons.map(esc).join(' · ')}</p></div><b class="tc-count">${g.seasons.length}</b></div>`).join('')}</div>`;
+  const groups = Object.values(by).sort((a, b) => b.won.length - a.won.length || b.second.length - a.second.length);
+  const totalWon = groups.reduce((t, g) => t + g.won.length, 0);
+  const chips = (list) => list.map((x) => `<span class="season-chip">${esc(x)}</span>`).join('');
+  return `<div class="card honours-hero"><b>${totalWon}</b><span>major troph${totalWon === 1 ? 'y' : 'ies'}</span>${trophyShelf(app, c, { big: true })}</div>
+    ${groups.map((g) => {
+      const l = w.leagues[g.leagueId];
+      const isCupComp = l && l.type === 'cup';
+      return `<div class="card honour-card">
+        <div class="hc-head">${l ? leagueLogo(l, 40) : '🏆'}<div><h3>${esc(g.name)}</h3><small>${g.won.length ? `${g.won.length}× ${isCupComp ? 'winners' : 'champions'}` : 'No titles yet'}</small></div><b class="hc-count ${g.won.length ? '' : 'zero'}">${g.won.length}</b></div>
+        ${g.won.length ? `<div class="hc-line"><span>🏆 ${isCupComp ? 'Winners' : 'Champions'}</span><div>${chips(g.won)}</div></div>` : ''}
+        ${g.second.length ? `<div class="hc-line"><span>🥈 ${isCupComp ? 'Finalists' : 'Runners-up'}</span><div>${chips(g.second)}</div></div>` : ''}
+        ${g.promoted.length ? `<div class="hc-line"><span>⬆️ Promoted</span><div>${chips(g.promoted)}</div></div>` : ''}
+      </div>`;
+    }).join('')}`;
 }
 
 function recordsTab(app, c) {

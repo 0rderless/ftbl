@@ -2,32 +2,34 @@
 import { esc } from '../dom.js';
 import { ICONS, header, tabs, leagueLogo, clubBadge, emptyState } from '../components.js';
 import { currentRound, totalRounds, seasonStarted } from '../../league/season.js';
-import { STAGES, roundLabel, stageOfRound, groupTables, pendingQualifiers, forcedWins } from '../../league/cup.js';
+import { STAGES, roundLabel, stageOfRound, groupTables, pendingQualifiers, forcedWins, isKnockout, playLabel, cupTotalRounds } from '../../league/cup.js';
 import { winLabel } from '../winGame.js';
 
 export const CUP_TABS = [['fixtures', 'Fixtures'], ['groups', 'Groups'], ['bracket', 'Knockouts'], ['stats', 'Stats'], ['history', 'History']];
+export const KO_TABS = [['fixtures', 'Fixtures'], ['bracket', 'Rounds'], ['stats', 'Stats'], ['history', 'History']];
 
 export function cupStageText(l) {
   const s = l.season;
   if (!s) return '';
   if (s.finished) return 'Season complete';
   const r = currentRound(l);
-  return roundLabel(r);
+  return roundLabel(r, l);
 }
 
 export function renderCup(app, l, tab, ui, statsTab) {
   const s = l.season;
   const done = s ? s.fixtures.filter((f) => f.result).length : 0;
-  const pct = s ? (Math.max(0, currentRound(l) - 1 || (s.finished ? 13 : 0)) / 13) * 100 : 0;
+  const total = cupTotalRounds(l) || 1;
+  const pct = s ? (Math.max(0, currentRound(l) - 1) / total) * 100 : 0;
   let body;
-  if (tab === 'groups') body = groupsTab(app, l);
+  if (tab === 'groups' && !isKnockout(l)) body = groupsTab(app, l);
   else if (tab === 'bracket') body = bracketTab(app, l);
   else if (tab === 'stats') body = statsTab(app, l);
   else if (tab === 'history') body = historyTab(app, l);
   else body = fixturesTab(app, l, ui);
   return `${header({ title: l.name, sub: `${esc(s ? s.label : '')} · ${esc(cupStageText(l))}`, back: '#/leagues', logo: leagueLogo(l, 34), actions: `<a class="icon-btn" href="#/league/${l.id}/edit" aria-label="Edit competition">${ICONS.edit}</a>` })}
     <div class="progress slim"><i style="width:${s && s.finished ? 100 : pct}%"></i></div>
-    ${tabs(CUP_TABS, tab, `#/league/${l.id}`)}
+    ${tabs(isKnockout(l) ? KO_TABS : CUP_TABS, tab, `#/league/${l.id}`)}
     <div class="pad">${winnerBanner(app, l)}${body}</div>${done ? '' : ''}`;
 }
 
@@ -53,7 +55,7 @@ function fixtureRow(app, l, f, isCurrent) {
   const r = f.result;
   const tie = tieFor(l, f);
   let hw = r && r.hg > r.ag, aw = r && r.ag > r.hg;
-  let note = f.stage === 'groups' ? `Group ${f.group}` : f.stage === 'final' ? `Final · ${esc(f.venue || 'Neutral venue')}` : `${f.leg === 1 ? '1st' : '2nd'} leg`;
+  let note = f.stage === 'groups' ? `Group ${f.group}` : f.stage === 'final' ? `Final · ${esc(f.venue || 'Neutral venue')}` : f.leg ? `${f.leg === 1 ? '1st' : '2nd'} leg` : 'One match · extra time & penalties if level';
   if (tie && tie.winner && tie.fixtures[tie.fixtures.length - 1] === f.id) {
     hw = tie.winner === f.home; aw = tie.winner === f.away;
     const [ga, gb] = tie.agg;
@@ -86,13 +88,13 @@ function fixturesTab(app, l, ui) {
   const rounds = Array.from({ length: maxDrawn }, (_, i) => i + 1);
   return `<div class="round-nav">
       <button class="icon-btn" data-act="round" data-v="${r - 1}" ${r <= 1 ? 'disabled' : ''} aria-label="Previous round">${ICONS.chevL}</button>
-      <label class="round-select"><span>${esc(stageOfRound(r).label)}<small>${esc(roundLabel(r).split(' · ')[1] || (isCurrent ? 'Current' : ''))}${isCurrent && stageOfRound(r).key !== 'groups' ? ' · current' : ''}</small></span>
-        <select data-field="round" aria-label="Choose round">${rounds.map((i) => `<option value="${i}" ${i === r ? 'selected' : ''}>${esc(roundLabel(i))}</option>`).join('')}</select></label>
+      <label class="round-select"><span>${esc(stageOfRound(r, l).label)}<small>${esc(isKnockout(l) ? (isCurrent ? 'Current' : r < cr || !cr ? 'Played' : '') : (roundLabel(r).split(' · ')[1] || (isCurrent ? 'Current' : '')))}${!isKnockout(l) && isCurrent && stageOfRound(r).key !== 'groups' ? ' · current' : ''}</small></span>
+        <select data-field="round" aria-label="Choose round">${rounds.map((i) => `<option value="${i}" ${i === r ? 'selected' : ''}>${esc(roundLabel(i, l))}</option>`).join('')}</select></label>
       <button class="icon-btn" data-act="round" data-v="${r + 1}" ${r >= maxDrawn ? 'disabled' : ''} aria-label="Next round">${ICONS.chev}</button>
     </div>
     <div class="card fx-list cup">${list.map((f) => fixtureRow(app, l, f, isCurrent)).join('')}</div>
     ${!s.finished ? `${activeWins(app, l)}<div class="sim-bar">
-      <button class="btn primary" data-act="play" data-id="${l.id}">${ICONS.play} Play ${esc(cr <= 6 ? `MD ${cr}` : stageOfRound(cr).short + (stageOfRound(cr).key === 'final' ? '' : stageOfRound(cr).rounds[0] === cr ? ' leg 1' : ' leg 2'))}</button>
+      <button class="btn primary" data-act="play" data-id="${l.id}">${ICONS.play} Play ${esc(isKnockout(l) ? stageOfRound(cr, l).short : playLabel(l, cr))}</button>
       <button class="btn win-btn" data-act="winGame" data-id="${l.id}">${ICONS.trophy} Win game</button>
       <button class="btn" data-act="season" data-id="${l.id}" aria-label="Simulate all">${ICONS.ff}</button>
     </div>` : ''}
@@ -100,7 +102,7 @@ function fixturesTab(app, l, ui) {
     <p class="hint">${seasonStarted(l) ? '' : 'The group draw keeps clubs from the same country or league apart. '}Season seed <code>${esc(s.seed)}</code></p>`;
 }
 
-function activeWins(app, l) {
+export function activeWins(app, l) {
   const fw = forcedWins(l);
   const ids = Object.keys(fw);
   if (!ids.length) return '';
@@ -119,7 +121,35 @@ function groupsTab(app, l) {
     <div class="legend"><span><i class="z-dot z-promotion"></i>Round of 16</span><span><i class="z-dot hl-dot"></i>League qualifiers</span></div>`;
 }
 
+function knockoutRounds(app, l) {
+  const w = app.world;
+  const s = l.season;
+  const rounds = [...new Set(s.ties.map((t) => t.round))].sort((a, b) => b - a);
+  const upcoming = [];
+  for (let r = (rounds[0] || 0) + 1; r <= s.totalRounds; r++) upcoming.push(r);
+  return `${upcoming.reverse().map((r) => `<h3 class="section-title">${esc(roundLabel(r, l))}</h3><p class="hint">To be drawn${(s.entries && s.entries[r]) ? ` · ${s.entries[r].length} clubs enter here` : ''}.</p>`).join('')}
+  ${rounds.map((r, idx) => {
+    const ties = s.ties.filter((t) => t.round === r);
+    const entering = (s.entries && s.entries[r]) || [];
+    const body = ties.map((t) => {
+      const A = w.clubs[t.a], B = t.b && w.clubs[t.b];
+      if (t.bye) return `<div class="tie done"><span class="tie-team win">${clubBadge(A, 22)}<span>${esc(A ? A.name : '?')}</span><b>–</b></span><small>Bye to the next round</small></div>`;
+      const f = s.fixtures.find((x) => x.id === t.fixtures[0]);
+      const r2 = f && f.result;
+      const ga = r2 ? (f.home === t.a ? r2.hg : r2.ag) : null, gb = r2 ? (f.home === t.a ? r2.ag : r2.hg) : null;
+      return `<a class="tie ${t.winner ? 'done' : ''}" href="#/match/${l.id}/${f.id}">
+        <span class="tie-team ${t.winner === t.a ? 'win' : t.winner ? 'out' : ''}">${clubBadge(A, 22)}<span>${esc(A ? A.name : '?')}</span><b>${r2 ? ga : '–'}</b></span>
+        <span class="tie-team ${t.winner === t.b ? 'win' : t.winner ? 'out' : ''}">${clubBadge(B, 22)}<span>${esc(B ? B.name : '?')}</span><b>${r2 ? gb : '–'}</b></span>
+        ${r2 && (r2.et || r2.pens) ? `<small>${r2.pens ? `${t.winner === t.a ? Math.max(r2.pens.home, r2.pens.away) : Math.min(r2.pens.home, r2.pens.away)}-${t.winner === t.a ? Math.min(r2.pens.home, r2.pens.away) : Math.max(r2.pens.home, r2.pens.away)} on penalties` : 'After extra time'}</small>` : ''}
+      </a>`;
+    }).join('');
+    const open = idx < 2 ? 'open' : '';
+    return `<details class="ko-round" ${open}><summary><span>${esc(roundLabel(r, l))}</span><small>${ties.length} tie${ties.length === 1 ? '' : 's'}${entering.length ? ` · ${entering.length} clubs entered` : ''}</small></summary><div class="card flush">${body}</div></details>`;
+  }).join('')}`;
+}
+
 function bracketTab(app, l) {
+  if (isKnockout(l)) return knockoutRounds(app, l);
   const w = app.world;
   const s = l.season;
   if (!s.ties.length) return emptyState('Knockouts not drawn yet', 'The Round of 16 is drawn when the group stage ends: group winners face runners-up from other groups.');

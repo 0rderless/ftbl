@@ -63,7 +63,7 @@ export function ratingChip(v) {
 
 export function header({ title, sub = '', back = null, actions = '', logo = '' }) {
   return `<header class="topbar">
-    ${back ? `<a class="icon-btn" href="${back}" aria-label="Back">${ICONS.back}</a>` : '<span class="brand">ftbl</span>'}
+    ${back ? `<a class="icon-btn" href="${back}" data-back="${back}" aria-label="Back">${ICONS.back}</a>` : '<span class="brand">ftbl</span>'}
     <div class="topbar-title">${logo}<div><h1>${esc(title)}</h1>${sub ? `<p>${sub}</p>` : ''}</div></div>
     <div class="topbar-actions">${actions}</div>
   </header>`;

@@ -18,7 +18,7 @@ export function render(app) {
       ${leagueLogo(l, 52)}
       <div class="lc-body">
         <h3>${esc(l.name)}</h3>
-        <p>${s ? `${esc(s.label)} · ${s.finished ? 'Complete' : l.type === 'cup' ? esc(roundLabel(currentRound(l))) : `MD ${currentRound(l)}/${totalRounds(l)}`}` : ''} · ${l.clubIds.length} clubs</p>
+        <p>${s ? `${esc(s.label)} · ${s.finished ? 'Complete' : l.type === 'cup' ? esc(roundLabel(currentRound(l), l)) : `MD ${currentRound(l)}/${totalRounds(l)}`}` : ''} · ${l.clubIds.length} clubs</p>
         <p class="tags">${leader && s && s.fixtures.some((f) => f.result) ? `<span class="tag">${clubBadge(leader, 14)} ${esc(leader.short)} lead</span>` : ''}
           ${lastChamp ? `<span class="tag gold">${ICONS.trophy} ${esc(lastChamp.short)}</span>` : ''}
           ${up ? `<span class="tag">↑ ${esc(up.name)}</span>` : ''}${down ? `<span class="tag">↓ ${esc(down.name)}</span>` : ''}</p>

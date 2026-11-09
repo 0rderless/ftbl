@@ -171,7 +171,11 @@ async function withCloud(ctx) {
     // ---- simulate single match ----
     await go(`#/league/${league.id}/fixtures`);
     await page.click('[data-act=simOne]');
-    await page.waitForTimeout(200);
+    await page.waitForSelector('.live');
+    await page.click('[data-live=skip]');
+    await page.waitForSelector('[data-end]:not([hidden])', { timeout: 15000 });
+    await page.click('[data-live=close]');
+    await page.waitForSelector('.live-wrap', { state: 'detached' });
     w = await world();
     assert.equal(w.leagues[league.id].season.fixtures.filter((f) => f.result).length, 1);
     step('simulated a single match');
@@ -344,8 +348,93 @@ async function withCloud(ctx) {
     await go(`#/match/${ucl.id}/${finalFx.id}`);
     await page.waitForSelector('.scoreboard');
     await go(`#/club/${champ}/honours`);
-    await page.waitForSelector('.trophy-card.cup');
+    await page.waitForSelector('.honours-hero .shelf-item');
     step('Champions League added with the Kronliga top 3; group stage, knockouts and final played');
+
+    // ---- Daffers Cup (knockout) was added; play a round ----
+    w = await world();
+    const daf = Object.values(w.leagues).find((l) => l.format === 'knockout');
+    assert.ok(daf && daf.name === 'Daffers Cup');
+    await go(`#/league/${daf.id}/fixtures`);
+    await page.click('.sim-bar [data-act=play]');
+    await page.waitForSelector('.md-panel');
+    await page.click('.md-panel .btn');
+    await go(`#/league/${daf.id}/bracket`);
+    await page.waitForSelector('.ko-round');
+    step('Daffers Cup: knockout round played, rounds view shows the draw');
+
+    // ---- Win game in a league (Kronliga 2) ----
+    w = await world();
+    const k2now = w.leagues[k2.id];
+    const k2pick = k2now.season.clubIds.map((id) => w.clubs[id]).sort((x, y) => x.ratings.overall - y.ratings.overall)[0];
+    await go(`#/league/${k2.id}/fixtures`);
+    await page.click('[data-act=winGame]');
+    await page.fill('.wg-input', k2pick.name.split(' ')[0].slice(0, 4).toLowerCase());
+    await page.click(`.wg-list [data-sheet="${k2pick.id}"]`);
+    await page.click('.wg-options [data-sheet="1"]');
+    const roundBefore = await page.evaluate((id) => { const l = window.ftbl.store.world.leagues[id]; return Math.min(...l.season.fixtures.filter((f) => !f.result).map((f) => f.round)); }, k2.id);
+    let pickRound = roundBefore;
+    for (let i = 0; i < 3; i++) {
+      w = await world();
+      const g = w.leagues[k2.id].season.fixtures.find((f) => (f.home === k2pick.id || f.away === k2pick.id) && f.result && f.round >= roundBefore);
+      if (g) { pickRound = g.round; break; }
+      await page.click('.sim-bar [data-act=play]');
+      await page.waitForSelector('.md-panel');
+      await page.click('.md-panel .btn');
+    }
+    w = await world();
+    const g2 = w.leagues[k2.id].season.fixtures.find((f) => (f.home === k2pick.id || f.away === k2pick.id) && f.result && f.round >= roundBefore);
+    assert.ok(g2 && (g2.home === k2pick.id ? g2.result.hg > g2.result.ag : g2.result.ag > g2.result.hg), 'league Win game won the match');
+    step('Win game in a league: typed part of the name, the club won its next match');
+
+    // ---- FIFA-style live Sim match ----
+    w = await world();
+    const cr2 = Math.min(...w.leagues[k2.id].season.fixtures.filter((f) => !f.result).map((f) => f.round));
+    const liveFx = w.leagues[k2.id].season.fixtures.find((f) => f.round === cr2 && !f.result);
+    await go(`#/match/${k2.id}/${liveFx.id}`);
+    await page.click('[data-act=live]');
+    await page.waitForSelector('.live');
+    await page.waitForFunction(() => parseInt(document.querySelector('[data-clock]').textContent, 10) >= 3, null, { timeout: 8000 });
+    await page.click('[data-live=speed]');
+    await page.click('[data-live=skip]');
+    await page.waitForSelector('[data-end]:not([hidden])', { timeout: 15000 });
+    const shown = await page.evaluate(() => [document.querySelector('[data-hs]').textContent, document.querySelector('[data-as]').textContent].map(Number));
+    w = await world();
+    const liveRes = w.leagues[k2.id].season.fixtures.find((f) => f.id === liveFx.id).result;
+    assert.deepEqual(shown, [liveRes.hg, liveRes.ag], 'live score matches the saved result');
+    await page.click('[data-live=close]');
+    await page.waitForSelector('.live-wrap', { state: 'detached' });
+    step('live Sim match: clock ran, skip to result, score matches the saved match');
+
+    // ---- Clubs grouped by competition ----
+    await go('#/clubs');
+    await page.waitForSelector('.comp-chip');
+    const chipCount = await page.$$eval('.comp-chip', (els) => els.length);
+    w = await world();
+    assert.ok(chipCount >= Object.keys(w.leagues).length, 'one chip per competition (+ all)');
+    await page.click(`.comp-chip[data-value="${daf.id}"]`);
+    await page.waitForSelector('.section-title');
+    const sections = await page.$$eval('.section-title', (els) => els.map((e) => e.textContent));
+    assert.ok(sections.some((t) => /Kronliga/.test(t)));
+    step('Clubs tab groups clubs by competition (Daffers Cup split by entry round)');
+
+    // ---- Back returns to the previous screen ----
+    await go('#/clubs');
+    const firstClub = await page.$eval('.club-card', (a) => a.getAttribute('href'));
+    await page.click('.club-card');
+    await page.waitForSelector('.club-hero');
+    await page.click('a.tab[href$="/honours"]');
+    await page.waitForTimeout(200);
+    await page.click('.topbar [data-back]');
+    await page.waitForTimeout(300);
+    assert.equal(await page.evaluate(() => location.hash), '#/clubs', 'back went to the previous place, not a fixed parent');
+    await go(`#/league/${k2.id}/table`);
+    await page.click('.fx-row a, .ltable a');
+    await page.waitForSelector('.club-hero');
+    await page.click('.topbar [data-back]');
+    await page.waitForTimeout(300);
+    assert.equal(await page.evaluate(() => location.hash), `#/league/${k2.id}/table`);
+    step('Back button returns to wherever you were before');
 
     // ---- delete flow guards ----
     await go(`#/club/${Object.values(w.clubs).find((c) => c.name === 'Ravenmoor FC').id}/squad`);

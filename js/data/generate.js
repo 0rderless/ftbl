@@ -3,6 +3,9 @@ import { RNG } from '../core/rng.js';
 import { NATIONS, randomName } from './nations.js';
 import { newPlayer, calcOverall, clampRating } from './model.js';
 
+// smaller 18-man squad for lower-league clubs
+export const SMALL_SQUAD = ['GK', 'GK', 'RB', 'CB', 'CB', 'CB', 'LB', 'DM', 'CM', 'CM', 'AM', 'RM', 'LM', 'RW', 'LW', 'ST', 'ST', 'CM'];
+
 // 25-man squad template
 export const SQUAD_TEMPLATE = ['GK', 'GK', 'GK', 'RB', 'RB', 'CB', 'CB', 'CB', 'CB', 'LB', 'LB', 'DM', 'DM', 'CM', 'CM', 'CM', 'AM', 'RM', 'LM', 'RW', 'LW', 'ST', 'ST', 'ST', 'CM'];
 
@@ -59,12 +62,13 @@ function shirtNumber(rng, position, used) {
 export function generateSquad(club, existing = [], options = {}) {
   const rng = new RNG(options.seed || `${club.id}|squad|${existing.length}|${Date.now()}`);
   const home = options.nation || 'ENG';
-  const size = options.size || SQUAD_TEMPLATE.length;
+  const template = options.template || SQUAD_TEMPLATE;
+  const size = options.size || template.length;
   const have = {};
   for (const p of existing) have[p.position] = (have[p.position] || 0) + 1;
   const needed = [];
   const tmplCount = {};
-  for (const pos of SQUAD_TEMPLATE) {
+  for (const pos of template) {
     tmplCount[pos] = (tmplCount[pos] || 0) + 1;
     if ((have[pos] || 0) < tmplCount[pos]) needed.push(pos);
   }

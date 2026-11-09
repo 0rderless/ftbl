@@ -14,6 +14,10 @@ function init(app, id) {
   draftKey = key; search = '';
   resetDesigner();
   const l = id && app.world.leagues[id];
+  if (l && l.type === 'cup' && l.format === 'knockout') {
+    draft = { type: 'knockout', name: l.name, short: l.short, logo: { ...l.logo }, clubIds: [], config: { ...l.config } };
+    return;
+  }
   if (l && l.type === 'cup') {
     const q = (l.config.qualifiers || [])[0] || { leagueId: '', spots: 3 };
     draft = { type: 'cup', name: l.name, short: l.short, logo: { ...l.logo }, clubIds: (l.regulars || []).slice(), config: { ...l.config }, qualifier: { ...q } };
@@ -32,6 +36,7 @@ export function render(app, id) {
   const l = id && w.leagues[id];
   if (id && !l) return `${header({ title: 'League not found', back: '#/leagues' })}`;
   if (draft.type === 'cup') return cupEditor(app, l);
+  if (draft.type === 'knockout') return knockoutEditor(app, l);
   const locked = l && seasonStarted(l) && !l.season.finished;
   const c = draft.config;
   const clubs = Object.values(w.clubs).sort((a, b) => a.name.localeCompare(b.name));
@@ -101,6 +106,29 @@ export function render(app, id) {
 // League logos can also use club badge presets for variety
 const BADGE_LIKE = BADGE_PRESETS.slice(0, 12);
 
+function knockoutEditor(app, l) {
+  const w = app.world;
+  const ctx = { name: draft.name || 'Cup', short: draft.short || 'CUP' };
+  const entries = (l.config.entries || []).map((e) => {
+    const n = e.leagueId ? ((w.leagues[e.leagueId] && w.leagues[e.leagueId].clubIds.length) || 0) : (e.clubIds || []).filter((id) => w.clubs[id]).length;
+    return `<div class="kv"><span>${esc(e.label || (e.leagueId && w.leagues[e.leagueId] ? w.leagues[e.leagueId].name : 'Clubs'))}</span><b>${n} clubs · round ${e.round}</b></div>`;
+  }).join('');
+  return `${header({ title: 'Edit competition', back: `#/league/${l.id}`, actions: '<button class="btn primary sm" data-act="save">Save</button>' })}
+  <div class="pad form">
+    <section class="card"><h3 class="card-title">Competition</h3>
+      <label class="field"><span>Name</span><input type="text" maxlength="60" data-field="name" value="${esc(draft.name)}"></label>
+      <label class="field"><span>Abbreviation</span><input type="text" maxlength="4" class="upper" data-field="short" value="${esc(draft.short)}"></label>
+      <p class="hint">Knockout · one match per tie · extra time and penalties if level · final at ${esc(l.config.finalVenue || 'a neutral ground')}.</p>
+    </section>
+    <section class="card"><h3 class="card-title">Who enters when</h3>${entries}<p class="hint">League clubs are taken from the league at each new season's draw, so new Kronliga clubs are included automatically.</p></section>
+    <section class="card"><h3 class="card-title">Logo</h3>${designerHTML(draft.logo, ctx, LEAGUE_LOGO_PRESETS.concat(BADGE_LIKE))}</section>
+    <section class="card danger-zone"><h3 class="card-title">Manage</h3>
+      ${!l.season.finished ? `<button class="btn ghost block" data-act="restart">${ICONS.refresh} Redraw this season (wipes its results)</button>` : ''}
+      <button class="btn danger block" data-act="delete">${ICONS.trash} Delete competition</button></section>
+    <button class="btn primary block" data-act="save">Save changes</button>
+  </div>`;
+}
+
 function cupEditor(app, l) {
   const w = app.world;
   const q = draft.qualifier;
@@ -152,15 +180,20 @@ export const actions = {
     const id = app.route.params[0];
     const data = { name: draft.name, short: draft.short || makeShort(draft.name || 'League'), logo: draft.logo, config: draft.config };
     if (!draft.name.trim()) { app.toast('Give the league a name', 'error'); return; }
+    if (draft.type === 'knockout') {
+      const ok = app.act((w) => { updateCup(w, id, { name: draft.name, short: draft.short, logo: draft.logo }); return true; }, 'Competition saved');
+      if (ok) { draft = null; draftKey = null; app.nav(`#/league/${id}`, { replace: true }); }
+      return;
+    }
     if (draft.type === 'cup') {
       const q = draft.qualifier;
       const ok = app.act((w) => { updateCup(w, id, { name: draft.name, short: draft.short, logo: draft.logo, regulars: draft.clubIds, qualifiers: q.leagueId ? [{ leagueId: q.leagueId, spots: q.spots }] : [] }); return true; }, 'Competition saved');
-      if (ok) { draft = null; draftKey = null; app.nav(`#/league/${id}`); }
+      if (ok) { draft = null; draftKey = null; app.nav(`#/league/${id}`, { replace: true }); }
       return;
     }
     if (!id) {
       const l = app.act((w) => createLeague(w, { ...data, clubIds: draft.clubIds }), 'League created');
-      if (l) { draft = null; draftKey = null; app.nav(`#/league/${l.id}/fixtures`); }
+      if (l) { draft = null; draftKey = null; app.nav(`#/league/${l.id}/fixtures`, { replace: true }); }
       return;
     }
     const ok = app.act((w) => {
@@ -170,19 +203,19 @@ export const actions = {
       if (!sameClubs) setLeagueClubs(w, id, draft.clubIds);
       return true;
     }, 'League saved');
-    if (ok) { draft = null; draftKey = null; app.nav(`#/league/${id}`); }
+    if (ok) { draft = null; draftKey = null; app.nav(`#/league/${id}`, { replace: true }); }
   },
   async restart(app) {
     const id = app.route.params[0];
     if (await app.confirm('All results this season will be wiped and new fixtures generated.', { ok: 'Restart season', danger: true })) {
-      if (app.act((w) => restartLeagueSeason(w, id), 'Season restarted')) { draft = null; draftKey = null; app.nav(`#/league/${id}/fixtures`); }
+      if (app.act((w) => restartLeagueSeason(w, id), 'Season restarted')) { draft = null; draftKey = null; app.nav(`#/league/${id}/fixtures`, { replace: true }); }
     }
   },
   async delete(app) {
     const id = app.route.params[0];
     if (await app.confirm('The league, its fixtures and its history will be deleted. Clubs and players are kept.', { ok: 'Delete league', danger: true })) {
       app.act((w) => deleteLeague(w, id), 'League deleted');
-      draft = null; draftKey = null; app.nav('#/leagues');
+      draft = null; draftKey = null; app.nav('#/leagues', { replace: true });
     }
   },
 };
