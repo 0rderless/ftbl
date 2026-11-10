@@ -20,7 +20,8 @@ function resultsOverlay(app, league, round, fixtures) {
   const w = app.world;
   const row = (lg, f, i) => {
     const h = w.clubs[f.home], a = w.clubs[f.away];
-    return `<a class="md-row" style="--d:${i * 70}ms" href="#/match/${lg.id}/${f.id}" data-close>
+    // all rows are in within about half a second, however many matches there are
+    return `<a class="md-row" style="--d:${Math.min(i, 12) * 35}ms" href="#/match/${lg.id}/${f.id}" data-close>
       <span class="md-team"><span class="nm">${esc(h ? h.name : '?')}</span>${clubBadge(h, 26)}</span>
       <span class="md-score"><b>${f.result.hg}</b><i>-</i><b>${f.result.ag}</b>${f.result.pens ? `<small>${f.result.pens.home}-${f.result.pens.away}p</small>` : f.result.et ? '<small>aet</small>' : ''}</span>
       <span class="md-team away">${clubBadge(a, 26)}<span class="nm">${esc(a ? a.name : '?')}</span></span></a>`;
@@ -48,15 +49,23 @@ export async function simMatchday(app, leagueId) {
   if (!league || !league.season) return;
   const round = currentRound(league);
   if (!round) { app.toast('Season complete', 'info'); return; }
+  // a short "Matchday N" cover so the scores aren't visible before the results screen.
+  // It shows straight away (before the matches are played) and a tap skips it.
   let intro = null;
+  let skip = () => {};
+  const tapped = new Promise((r) => { skip = r; });
   if (!reduceMotion()) {
     intro = overlay(`<div class="md-intro"><small>${esc(league.name)}</small><h1>${esc(league.type === 'cup' ? roundLabel(round, league).replace('Group stage · ', '') : `Matchday ${round}`)}</h1><div class="md-bar"><i></i></div></div>`, 'intro');
+    intro.el.addEventListener('pointerdown', () => skip());
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))); // let it appear first
   }
+  const t0 = performance.now();
   const played = app.act((w) => playRound(w, w.leagues[leagueId], app.params()));
   if (!played) { if (intro) intro.close(); return; }
-  if (intro) await new Promise((r) => setTimeout(r, 900));
-  if (intro) intro.close();
+  if (intro) await Promise.race([new Promise((r) => setTimeout(r, Math.max(0, 450 - (performance.now() - t0)))), tapped]);
+  // open the results on top of the cover, then remove it: the scores never show behind
   if (played.length) resultsOverlay(app, app.world.leagues[leagueId], round, played);
+  if (intro) setTimeout(() => intro.close(), 150);
   afterPlay(app, leagueId);
 }
 

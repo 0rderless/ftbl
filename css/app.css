@@ -892,3 +892,6 @@ input, textarea, select, [contenteditable="true"] {
 .z-europa td:first-child::before { background: #f97316; }
 .z-conference td:first-child::before { background: #2dd4bf; }
 .z-dot.z-europa { background: #f97316; } .z-dot.z-conference { background: #2dd4bf; }
+/* the "Matchday N" cover is opaque straight away, so no scores show through while it fades in */
+.md-overlay.intro { opacity: 1; background: radial-gradient(800px 500px at 50% 30%, rgba(91, 33, 182, .45), #05050c), #05050c; }
+.md-overlay.intro:not(.show) { opacity: 1; }
