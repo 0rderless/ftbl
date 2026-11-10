@@ -234,6 +234,10 @@ export function updateCup(world, id, data = {}) {
   if (data.short != null) cup.short = str(data.short, 4).toUpperCase() || cup.short;
   if (data.logo) cup.logo = data.logo;
   if (Array.isArray(data.regulars)) cup.regulars = [...new Set(data.regulars.filter((c) => world.clubs[c]))];
+  if ('follow' in data) {
+    const leader = data.follow && world.leagues[data.follow];
+    cup.config.followLeagueId = leader && leader.id !== id && isCup(leader) && leader.format !== 'knockout' && leader.config.followLeagueId !== id ? leader.id : null;
+  }
   if (Array.isArray(data.qualifiers)) {
     for (const x of Object.values(world.leagues)) if (x.config.continentalCupId === id) x.config.continentalCupId = null;
     cup.config.qualifiers = data.qualifiers.filter((q) => world.leagues[q.leagueId] && !isCup(world.leagues[q.leagueId]))

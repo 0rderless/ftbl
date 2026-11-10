@@ -27,11 +27,13 @@ function resultsOverlay(app, league, round, fixtures) {
   };
   let rows = fixtures.map((f, i) => row(league, f, i)).join('');
   // leagues that play along automatically (e.g. Division 2 with Kronliga)
-  if (league.type !== 'cup') {
-    for (const fl of followers(w, league)) {
-      const list = fl.season.fixtures.filter((f) => f.round === round && f.result);
-      if (list.length) rows += `<div class="md-sub">${leagueLogo(fl, 22)}<span>${esc(fl.name)} · Matchday ${round}</span></div>` + list.map((f, i) => row(fl, f, fixtures.length + i)).join('');
-    }
+  // (Division 2 with Kronliga, the Europa League and Conference League with the Champions League)
+  let n = fixtures.length;
+  for (const fl of followers(w, league)) {
+    if (fl.season.label !== league.season.label) continue;
+    const list = fl.season.fixtures.filter((f) => f.round === round && f.result);
+    if (list.length) rows += `<div class="md-sub">${leagueLogo(fl, 22)}<span>${esc(fl.name)} · ${esc(fl.type === 'cup' ? roundLabel(round, fl) : `Matchday ${round}`)}</span></div>` + list.map((f, i) => row(fl, f, n + i)).join('');
+    n += list.length;
   }
   const o = overlay(`<div class="md-panel">
       <div class="md-head">${leagueLogo(league, 40)}<div><small>${esc(league.name)} · ${esc(league.season.label)}</small><h2>${esc(league.type === 'cup' ? roundLabel(round, league) : `Matchday ${round}`)}</h2></div></div>
@@ -81,7 +83,14 @@ export async function simSeason(app, leagueId) {
 
 export function afterPlay(app, leagueId) {
   const league = app.world.leagues[leagueId];
-  if (league && league.season && league.season.finished) championCelebration(app, league);
+  if (league && league.season && league.season.finished) {
+    championCelebration(app, league);
+    // competitions that finished with it (e.g. Europa League with the Champions League)
+    const others = followers(app.world, league).filter((f) => f.season.finished && f.season.label === league.season.label && f.history.length);
+    if (others.length) {
+      app.toast(others.map((f) => { const h = f.history[f.history.length - 1]; const c = app.world.clubs[h.championId]; return `🏆 ${c ? c.name : 'Champions'} win the ${f.name}`; }).join(' · '), 'ok');
+    }
+  }
 }
 
 export function championCelebration(app, league) {

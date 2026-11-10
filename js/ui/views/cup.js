@@ -17,6 +17,14 @@ export function cupStageText(l) {
   return roundLabel(r, l);
 }
 
+function followHint(app, l) {
+  const w = app.world;
+  const leader = l.config.followLeagueId && w.leagues[l.config.followLeagueId];
+  if (leader) return `<p class="hint">${ICONS.info} Plays automatically when you play the ${esc(leader.name)}. You can still play it yourself here.</p>`;
+  const fl = Object.values(w.leagues).filter((x) => x.type === 'cup' && x.config.followLeagueId === l.id);
+  return fl.length ? `<p class="hint">${ICONS.info} Playing the ${esc(l.name)} also plays the ${fl.map((x) => esc(x.name)).join(' and ')}.</p>` : '';
+}
+
 export function renderCup(app, l, tab, ui, statsTab) {
   const s = l.season;
   const done = s ? s.fixtures.filter((f) => f.result).length : 0;
@@ -31,7 +39,7 @@ export function renderCup(app, l, tab, ui, statsTab) {
   return `${header({ title: l.name, sub: `${esc(s ? s.label : '')} · ${esc(cupStageText(l))}`, back: '#/leagues', logo: leagueLogo(l, 34), actions: `<a class="icon-btn" href="#/league/${l.id}/edit" aria-label="Edit competition">${ICONS.edit}</a>` })}
     <div class="progress slim"><i style="width:${s && s.finished ? 100 : pct}%"></i></div>
     ${tabs(isKnockout(l) ? KO_TABS : CUP_TABS, tab, `#/league/${l.id}`)}
-    <div class="pad">${winnerBanner(app, l)}${body}</div>${done ? '' : ''}`;
+    <div class="pad">${winnerBanner(app, l)}${followHint(app, l)}${body}</div>${done ? '' : ''}`;
 }
 
 function winnerBanner(app, l) {

@@ -6,7 +6,7 @@ import { STYLES } from '../engine/tactics.js';
 import { generateFixtures, roundsCount } from './fixtures.js';
 import { computeTable } from './table.js';
 import { seasonLabel } from '../data/model.js';
-import { isCup, cupTotalRounds, resolveKnockout, advanceCup, startNextCupSeason, wouldWinTie } from './cup.js';
+import { isCup, cupTotalRounds, resolveKnockout, advanceCup, startNextCupSeason, startCupSeason, wouldWinTie } from './cup.js';
 
 export function playersByClub(world) {
   const map = {};
@@ -228,20 +228,34 @@ export function playFixture(world, league, fixtureId, params, squads) {
   if (season.fixtures.filter((x) => x.round === cr).every((x) => x.result)) {
     endRound(league, sq);
     if (isCup(league)) advanceCup(world, league);
-    else playFollowers(world, league, cr, params, isSeasonComplete(league));
+    playFollowers(world, league, cr, params, isCup(league) ? !!season.finished : isSeasonComplete(league));
   }
   if (!isCup(league) && isSeasonComplete(league) && !season.finished) finishSeason(world, league);
   return f;
 }
 
-/** Leagues set to play automatically alongside this one (e.g. Division 2 with Kronliga). */
+/**
+ * Competitions set to play automatically alongside this one: Division 2 with Kronliga, or the
+ * Europa League and Conference League with the Champions League. A league follows a league and a
+ * cup follows a cup.
+ */
 export function followers(world, league) {
-  return Object.values(world.leagues).filter((l) => !isCup(l) && l.id !== league.id && l.config.followLeagueId === league.id && l.season);
+  return Object.values(world.leagues).filter((l) => l.id !== league.id && l.config.followLeagueId === league.id && l.season && isCup(l) === isCup(league));
+}
+
+/** A following cup that is a season behind its leader: finish that season and draw the leader's one. */
+function catchUpCup(world, f, league, params) {
+  for (let guard = 0; guard < 5 && f.season.label < league.season.label; guard++) {
+    if (!f.season.finished) playSeason(world, f, params);
+    if (!f.season.finished) return;
+    startCupSeason(world, f, f.season.number + 1);
+  }
 }
 
 /** Bring followers up to the leader's matchday (or to the end of their season when the leader finishes). */
 function playFollowers(world, league, round, params, leaderDone) {
   for (const f of followers(world, league)) {
+    if (isCup(f)) catchUpCup(world, f, league, params);
     if (f.season.finished || f.season.label !== league.season.label) continue;
     for (let guard = 0; guard < 200; guard++) {
       const r = currentRound(f);

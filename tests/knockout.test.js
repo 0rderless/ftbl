@@ -395,7 +395,9 @@ test('Europa League (Kronliga 4th–5th) and Conference League (6th): real Europ
   assert.deepEqual([1, 2, 3, 4, 5, 6, 7, 18].map((pos) => zoneFor(pos, 20, k.config, places)), ['champion', 'continental', 'continental', 'europa', 'europa', 'conference', '', 'relegation']);
   // they play through and take the next Kronliga table's places
   startNextSeason(w, k); playSeason(w, k, P);
-  for (const c of [ucl, uel, uecl]) { playSeason(w, c, P); assert.ok(c.season.finished && c.history.length === 1); startNextCupSeason(w, c); }
+  playSeason(w, ucl, P); // the Europa League and Conference League play along
+  for (const c of [ucl, uel, uecl]) assert.ok(c.season.finished && c.history.length === 1);
+  startNextCupSeason(w, ucl); // and are drawn with it
   const t2 = k.history[1].table.map((r) => r.clubId);
   assert.deepEqual([ucl.season.qualifiers, uel.season.qualifiers, uecl.season.qualifiers], [t2.slice(0, 3), t2.slice(3, 5), t2.slice(5, 6)]);
   // Restart game keeps the places apart too
@@ -410,4 +412,49 @@ test('Europa League (Kronliga 4th–5th) and Conference League (6th): real Europ
   const ids = [u2, e2, c2].flatMap((c) => c.season.qualifiers);
   assert.equal(ids.length, 6); assert.equal(new Set(ids).size, 6);
   assert.ok(Object.values(fresh.w.leagues).filter((l) => isCup(l) && !isKnockout(l)).every((c) => c.season.clubIds.length === 32));
+});
+
+test('Europa League and Conference League play automatically with the Champions League, round by round', async () => {
+  const { createContinentalCup, createEuropeanCups, startNextCupSeason } = await import('../js/league/cup.js');
+  const { w, k } = kronliga(20);
+  playSeason(w, k, P);
+  const { cup: ucl } = createContinentalCup(w, { qualifiers: [{ leagueId: k.id, spots: 3 }], startYear: 2027 });
+  const [uel, uecl] = createEuropeanCups(w, k, ucl);
+  assert.equal(uel.config.followLeagueId, ucl.id);
+  assert.equal(uecl.config.followLeagueId, ucl.id);
+  // one Champions League matchday plays the same matchday of both
+  playRound(w, ucl, P);
+  for (const c of [uel, uecl]) {
+    assert.equal(currentRound(c), 2, `${c.name} played matchday 1 too`);
+    assert.ok(c.season.fixtures.filter((f) => f.round === 1).every((f) => f.result));
+  }
+  // the whole season: all three finish together, each with a champion
+  playSeason(w, ucl, P);
+  for (const c of [ucl, uel, uecl]) assert.ok(c.season.finished && c.history.length === 1, `${c.name} finished`);
+  // starting the next Champions League draws the other two as well, with no club in two cups
+  startNextSeason(w, k); playSeason(w, k, P);
+  startNextCupSeason(w, ucl);
+  for (const c of [uel, uecl]) { assert.equal(c.season.label, ucl.season.label); assert.ok(!c.season.finished); }
+  assert.equal(new Set([ucl, uel, uecl].flatMap((c) => c.season.clubIds)).size, 96);
+  const t = k.history[1].table.map((r) => r.clubId);
+  assert.deepEqual([uel.season.qualifiers, uecl.season.qualifiers], [t.slice(3, 5), t.slice(5, 6)]);
+  // the cups never play ahead of the Champions League on their own
+  assert.equal(currentRound(uel), 1);
+  // catch-up: a following cup left a season behind (e.g. added after the UCL had finished)
+  playSeason(w, ucl, P);
+  for (const c of [uel, uecl]) assert.ok(c.season.finished);
+  startNextSeason(w, k); playSeason(w, k, P);
+  const { startCupSeason } = await import('../js/league/cup.js');
+  startCupSeason(w, ucl, ucl.season.number + 1); // the UCL alone moves on (as on a device before this update)
+  startCupSeason(w, uel, uel.season.number); // and the Europa League is redrawn unplayed for the old season
+  const oldLabel = uel.season.label;
+  assert.ok(oldLabel < ucl.season.label);
+  playRound(w, ucl, P);
+  assert.equal(uel.history.at(-1).label, oldLabel, 'the old Europa League season was completed');
+  assert.equal(uel.season.label, ucl.season.label, 'and the Europa League caught up');
+  assert.equal(currentRound(uel), 2, 'then played the same matchday');
+  // Division 2-style league following is unchanged: a cup never follows a league or vice versa
+  const { followers } = await import('../js/league/season.js');
+  assert.deepEqual(followers(w, ucl).map((c) => c.short).sort(), ['UECL', 'UEL']);
+  assert.deepEqual(followers(w, k).filter((x) => x.type === 'cup'), []);
 });

@@ -323,6 +323,11 @@ async function withCloud(ctx) {
     await go(`#/league/${ucl.id}/fixtures`);
     await page.click('.sim-bar [data-act=play]');
     await page.waitForSelector('.md-panel');
+    // the Europa League and Conference League played the same matchday, shown under the UCL results
+    const subs = await page.$$eval('.md-panel .md-sub', (els) => els.map((e) => e.textContent));
+    assert.ok(subs.some((t) => /Europa League/.test(t)) && subs.some((t) => /Conference League/.test(t)), subs.join(' | '));
+    w = await world();
+    for (const id of [uel.id, uecl.id]) assert.ok(w.leagues[id].season.fixtures.filter((f) => f.round === 1).every((f) => f.result), `${w.leagues[id].name} matchday 1 played with the UCL`);
     await page.click('.md-panel .btn');
     await go(`#/league/${ucl.id}/groups`);
     await page.waitForSelector('.group-card');
@@ -364,7 +369,9 @@ async function withCloud(ctx) {
     await page.waitForSelector('.scoreboard');
     await go(`#/club/${champ}/honours`);
     await page.waitForSelector('.honours-hero .shelf-item');
-    step('Champions League added with the Kronliga top 3; group stage, knockouts and final played');
+    w = await world();
+    for (const id of [uel.id, uecl.id]) assert.ok(w.leagues[id].season.finished && w.leagues[id].history.length === 1, `${w.leagues[id].name} finished with the UCL`);
+    step('Champions League added with the Kronliga top 3; group stage, knockouts and final played (Europa and Conference League played along)');
 
     // ---- Daffers Cup (knockout) was added; play a round ----
     w = await world();

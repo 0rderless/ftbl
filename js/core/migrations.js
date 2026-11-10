@@ -160,6 +160,18 @@ const MIGRATIONS = [
       return { done: true, message: `${made.map((c) => `${c.name} ${c.season.label} added (${q(c)} from Kronliga)`).join(' · ')}` };
     },
   },
+  {
+    id: 'european-cups-follow-ucl-v1',
+    // Requested: playing the Champions League also plays the Europa League and Conference League.
+    run(world) {
+      const cups = Object.values(world.leagues).filter((l) => isCup(l) && !isKnockout(l));
+      const ucl = cups.find((l) => l.short === 'UCL');
+      const others = cups.filter((l) => l.short === 'UEL' || l.short === 'UECL');
+      if (!ucl || !others.length) return null; // try again once they exist
+      for (const c of others) c.config.followLeagueId = ucl.id;
+      return { done: true, message: `${others.map((c) => c.name).join(' and ')} now play automatically when you play the ${ucl.name}` };
+    },
+  },
 ];
 
 /** Returns messages for migrations that changed the world (caller saves). */

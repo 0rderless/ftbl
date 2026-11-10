@@ -317,7 +317,15 @@ export function pendingQualifiers(world, cup) {
 
 export function startNextCupSeason(world, cup) {
   if (!cup.season || !cup.season.finished) throw new Error('Finish the current cup season first');
-  return startCupSeason(world, cup, cup.season.number + 1);
+  const season = startCupSeason(world, cup, cup.season.number + 1);
+  // cups that play along with this one (e.g. Europa and Conference League with the Champions League)
+  // start their next season too, drawn after it so no club is in two cups
+  for (const f of Object.values(world.leagues)) {
+    if (f.id === cup.id || !isCup(f) || f.config.followLeagueId !== cup.id || !f.season || !f.season.finished) continue;
+    if (f.season.label >= season.label) continue;
+    startCupSeason(world, f, f.season.number + 1);
+  }
+  return season;
 }
 
 /**
@@ -330,7 +338,7 @@ export const CUP_LOGOS = {
   uecl: { shape: 'circle', pattern: 'rays', emblem: 'star', c1: '#052e16', c2: '#15803d', c3: '#ffffff', trim: '#4ade80' },
 };
 
-export function createContinentalCup(world, { name = 'Champions League', short = 'UCL', qualifiers = [], size = 32, startYear, seed = 'ucl', clubs = CONTINENTAL_CLUBS, logo = CUP_LOGOS.ucl, override = null } = {}) {
+export function createContinentalCup(world, { name = 'Champions League', short = 'UCL', qualifiers = [], size = 32, startYear, seed = 'ucl', clubs = CONTINENTAL_CLUBS, logo = CUP_LOGOS.ucl, override = null, config = {} } = {}) {
   const nQ = qualifiers.reduce((t, q) => t + q.spots, 0);
   const own = clubs !== CONTINENTAL_CLUBS;
   const ids = addContinentalClubs(world, own ? clubs.length : 32, seed, clubs, { skipExisting: own });
@@ -344,7 +352,7 @@ export function createContinentalCup(world, { name = 'Champions League', short =
   const cup = newLeague({
     name, short,
     logo: { ...LEAGUE_LOGO_PRESETS[2].spec, ...logo },
-    config: { tiebreak: 'h2h', championsSpots: 1, continentalSpots: 0, relegationSpots: 0, legs: 2, startYear: startYear || 2026 },
+    config: { tiebreak: 'h2h', championsSpots: 1, continentalSpots: 0, relegationSpots: 0, legs: 2, startYear: startYear || 2026, ...config },
   });
   cup.type = 'cup';
   cup.regulars = regulars;
@@ -370,11 +378,12 @@ export function createEuropeanCups(world, league, ucl) {
   // same season label as the Champions League (cups are labelled one season after the table they qualify from)
   const startYear = ucl ? ucl.config.startYear + ((ucl.season && ucl.season.number) || 1) - 1 : league.config.startYear;
   const has = (short) => Object.values(world.leagues).some((l) => isCup(l) && !isKnockout(l) && l.short === short);
+  const follow = ucl ? { followLeagueId: ucl.id } : {};
   if (!has('UEL')) {
-    made.push(createContinentalCup(world, { name: 'Europa League', short: 'UEL', qualifiers: [{ leagueId: league.id, spots: 2, from: 4 }], startYear, seed: 'uel-' + league.id, clubs: EUROPA_CLUBS, logo: CUP_LOGOS.uel }).cup);
+    made.push(createContinentalCup(world, { name: 'Europa League', short: 'UEL', qualifiers: [{ leagueId: league.id, spots: 2, from: 4 }], startYear, seed: 'uel-' + league.id, clubs: EUROPA_CLUBS, logo: CUP_LOGOS.uel, config: follow }).cup);
   }
   if (!has('UECL')) {
-    made.push(createContinentalCup(world, { name: 'Conference League', short: 'UECL', qualifiers: [{ leagueId: league.id, spots: 1, from: 6 }], startYear, seed: 'uecl-' + league.id, clubs: CONFERENCE_CLUBS, logo: CUP_LOGOS.uecl }).cup);
+    made.push(createContinentalCup(world, { name: 'Conference League', short: 'UECL', qualifiers: [{ leagueId: league.id, spots: 1, from: 6 }], startYear, seed: 'uecl-' + league.id, clubs: CONFERENCE_CLUBS, logo: CUP_LOGOS.uecl, config: follow }).cup);
   }
   return made;
 }

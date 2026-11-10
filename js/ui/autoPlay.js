@@ -257,12 +257,14 @@ function tick() {
   run.matchdays++;
   const l = w.leagues[chosen.id];
   const label = l.type === 'cup' ? roundLabel(round, l) : `Matchday ${round}`;
-  const fl = l.type === 'cup' ? [] : followers(w, l);
+  const fl = followers(w, l).filter((f) => f.season.label === l.season.label);
   run.log.unshift({ text: `${l.name} · ${label}${fl.length ? ` (+ ${fl.map((f) => f.name).join(', ')})` : ''}`, results: played.slice(0, 3).map((f) => [f.home, f.result.hg, f.result.ag, f.away]) });
   if (l.season.finished) {
-    const h = l.history[l.history.length - 1];
-    const c = h && w.clubs[h.championId];
-    run.log.unshift({ text: `🏆 ${c ? c.name : 'Champions'} win the ${l.name} ${h ? h.label : ''}` });
+    for (const x of [...fl.filter((f) => f.season.finished && f.history.length), l]) {
+      const h = x.history[x.history.length - 1];
+      const c = h && w.clubs[h.championId];
+      run.log.unshift({ text: `🏆 ${c ? c.name : 'Champions'} win the ${x.name} ${h ? h.label : ''}` });
+    }
   }
   run.log = run.log.slice(0, 6);
   renderBar();
@@ -359,12 +361,17 @@ export async function startAutoSim(app, sel, seasons = 1, rig = null) {
           quietly(app, (world) => playRound(world, world.leagues[l.id], params(app)), Infinity);
           doneRounds++;
           $('[data-as-bar]').style.width = `${Math.min(100, (doneRounds / totalRounds) * 100)}%`;
-          if (w().leagues[l.id].season.finished) {
-            const h = w().leagues[l.id].history.slice(-1)[0];
-            const c = h && w().clubs[h.championId];
-            const line = `🏆 ${l.name} ${h ? h.label : ''}: ${c ? c.name : '—'}`;
-            champions.push(line);
-            const li = document.createElement('li'); li.textContent = line; $('[data-as-log]').prepend(li);
+          const now = w().leagues[l.id];
+          if (now.season.finished) {
+            // the competition and any that play along with it (Division 2, Europa League, Conference League)
+            const done = [now, ...followers(w(), now).filter((f) => f.season.finished && f.season.label === now.season.label && f.history.length)];
+            for (const x of done) {
+              const h = x.history.slice(-1)[0];
+              const c = h && w().clubs[h.championId];
+              const line = `🏆 ${x.name} ${h ? h.label : ''}: ${c ? c.name : '—'}`;
+              champions.push(line);
+              const li = document.createElement('li'); li.textContent = line; $('[data-as-log]').prepend(li);
+            }
           }
           await frame();
         }

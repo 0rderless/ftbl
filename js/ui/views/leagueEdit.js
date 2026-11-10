@@ -138,6 +138,7 @@ function cupEditor(app, l) {
   const ctx = { name: draft.name || 'Cup', short: draft.short || 'CUP' };
   const size = l.config.size || 32;
   const need = size - (q.leagueId ? Number(q.spots) || 0 : 0);
+  const leaders = Object.values(w.leagues).filter((x) => x.type === 'cup' && x.format !== 'knockout' && x.id !== l.id && x.config.followLeagueId !== l.id);
   return `${header({ title: 'Edit competition', back: `#/league/${l.id}`, actions: '<button class="btn primary sm" data-act="save">Save</button>' })}
   <div class="pad form">
     <section class="card"><h3 class="card-title">Competition</h3>
@@ -151,6 +152,8 @@ function cupEditor(app, l) {
       <div class="row gap"><label class="field"><span>From place</span><input type="number" min="1" max="20" data-field="q.from" value="${esc(q.from || 1)}"></label>
       <label class="field"><span>Number of places</span><input type="number" min="1" max="8" data-field="q.spots" value="${esc(q.spots)}"></label></div>
       <p class="hint">At the end of each league season, ${(Number(q.from) || 1) > 1 ? `places ${esc(q.from)}–${esc((Number(q.from) || 1) + (Number(q.spots) || 1) - 1)}` : `its top ${esc(q.spots)}`} go into the next ${esc(draft.name)}. Changes apply from the next draw.</p>
+      ${leaders.length ? `<label class="field"><span>Play automatically with</span><select data-field="cfg.followLeagueId"><option value="">No — I play it myself</option>${leaders.map((x) => `<option value="${x.id}" ${draft.config.followLeagueId === x.id ? 'selected' : ''}>${esc(x.name)} (round by round)</option>`).join('')}</select></label>
+      <p class="hint">When you play a round of that cup, the same round of ${esc(draft.name || 'this cup')} is played too, and its next season is drawn with it.</p>` : ''}
     </section>
     <section class="card"><h3 class="card-title">Continental clubs <span class="count">${draft.clubIds.length} selected · ${need} needed</span></h3>
       <p class="hint">The strongest ${need} selected clubs fill the rest of the field each season.${qualifierIds.size ? ' League qualifiers are added automatically.' : ''}</p>
@@ -187,7 +190,7 @@ export const actions = {
     }
     if (draft.type === 'cup') {
       const q = draft.qualifier;
-      const ok = app.act((w) => { updateCup(w, id, { name: draft.name, short: draft.short, logo: draft.logo, regulars: draft.clubIds, qualifiers: q.leagueId ? [{ leagueId: q.leagueId, spots: q.spots, from: Number(q.from) || 1 }] : [] }); return true; }, 'Competition saved');
+      const ok = app.act((w) => { updateCup(w, id, { name: draft.name, short: draft.short, logo: draft.logo, regulars: draft.clubIds, qualifiers: q.leagueId ? [{ leagueId: q.leagueId, spots: q.spots, from: Number(q.from) || 1 }] : [], follow: draft.config.followLeagueId || null }); return true; }, 'Competition saved');
       if (ok) { draft = null; draftKey = null; app.nav(`#/league/${id}`, { replace: true }); }
       return;
     }
