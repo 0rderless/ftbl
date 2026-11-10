@@ -70,10 +70,14 @@ function sortTable(list, played, config, pw, pd) {
 }
 
 // Zone for a position (1-based) given league config.
-export function zoneFor(pos, total, config) {
+// `places` (optional) are the league's European places from cupPlaces(): [{ from, to, zone }].
+export function zoneFor(pos, total, config, places = null) {
   if (pos === 1 && (config.championsSpots || 0) >= 1) return 'champion';
   if (config.upperLeagueId) {
     if (pos <= (config.promotionSpots || 0)) return 'promotion';
+  } else if (places && places.length) {
+    const p = places.find((x) => pos >= x.from && pos <= x.to);
+    if (p) return p.zone;
   } else if (config.continentalCupId) {
     // linked to a cup: the top N (champion included) qualify
     if (pos <= (config.continentalSpots || 0)) return 'continental';

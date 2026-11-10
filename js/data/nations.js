@@ -57,6 +57,18 @@ const POOLS = {
     first: ['Min-jae', 'Seung-ho', 'Ji-hoon', 'Hyun-woo', 'Dong-hyun', 'Jae-sung', 'Woo-jin', 'Tae-yang'],
     last: ['Kim', 'Lee', 'Park', 'Choi', 'Jung', 'Kang', 'Yoon', 'Han'],
   },
+  gr: {
+    first: ['Giorgos', 'Dimitris', 'Kostas', 'Nikos', 'Giannis', 'Vasilis', 'Christos', 'Panagiotis', 'Thanasis', 'Stelios', 'Manolis', 'Lefteris', 'Petros', 'Andreas'],
+    last: ['Andreou', 'Charalambous', 'Dimitriou', 'Georgiadis', 'Kallergis', 'Karagounis', 'Lazaridis', 'Manolas', 'Nikolaou', 'Papadakis', 'Samaras', 'Stavrou', 'Tsimikas', 'Vlachos'],
+  },
+  hu: {
+    first: ['Bence', 'Dániel', 'Ádám', 'Balázs', 'Gergő', 'Máté', 'Levente', 'Zsolt', 'Péter', 'Attila', 'Roland', 'Tamás', 'Dominik', 'Kristóf'],
+    last: ['Balogh', 'Farkas', 'Horváth', 'Kiss', 'Kovács', 'Lakatos', 'Molnár', 'Nagy', 'Németh', 'Papp', 'Szabó', 'Szalai', 'Tóth', 'Varga'],
+  },
+  he: {
+    first: ['Eran', 'Omer', 'Yonatan', 'Itay', 'Dor', 'Liel', 'Noam', 'Amit', 'Shon', 'Gil', 'Tomer', 'Eyal', 'Ido', 'Ron'],
+    last: ['Abergel', 'Ben Haim', 'Biton', 'Cohen', 'Dahan', 'Friedman', 'Gabay', 'Levi', 'Mizrahi', 'Peretz', 'Shalom', 'Solomon', 'Weissman', 'Zahavi'],
+  },
   latam: {
     first: ['Juan', 'Mateo', 'Santiago', 'Facundo', 'Emiliano', 'Thiago', 'Agustín', 'Valentín', 'Nahuel', 'Franco', 'Bautista', 'Julián', 'Cristian', 'Brian'],
     last: ['Acosta', 'Benedetto', 'Cabrera', 'Ferreyra', 'Gómez', 'Ibarra', 'Londoño', 'Montiel', 'Paredes', 'Quiroga', 'Ríos', 'Sosa', 'Valdivia', 'Zuñiga'],
@@ -75,6 +87,7 @@ export const NATIONS = [
   ['SEN', 'Senegal', '🇸🇳', 'waf'], ['CIV', "Côte d'Ivoire", '🇨🇮', 'waf'], ['MLI', 'Mali', '🇲🇱', 'waf'], ['CMR', 'Cameroon', '🇨🇲', 'waf'],
   ['MAR', 'Morocco', '🇲🇦', 'ar'], ['ALG', 'Algeria', '🇩🇿', 'ar'], ['EGY', 'Egypt', '🇪🇬', 'ar'], ['TUN', 'Tunisia', '🇹🇳', 'ar'],
   ['TUR', 'Türkiye', '🇹🇷', 'tr'], ['JPN', 'Japan', '🇯🇵', 'jp'], ['KOR', 'South Korea', '🇰🇷', 'kr'],
+  ['GRE', 'Greece', '🇬🇷', 'gr'], ['UKR', 'Ukraine', '🇺🇦', 'slav'], ['HUN', 'Hungary', '🇭🇺', 'hu'], ['ISR', 'Israel', '🇮🇱', 'he'],
   ['GEK', 'Geko', '🦎', 'en'],
 ].map(([code, name, flag, pool]) => ({ code, name, flag, pool }));
 

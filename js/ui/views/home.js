@@ -8,11 +8,11 @@ import { cupStageText } from './cup.js';
 import { openAutoPlay, isAutoRunning, autoMode } from '../autoPlay.js';
 import { competitions } from './biggest.js';
 import { competitionLeaderboard, countryLeaderboard } from '../../league/records.js';
-import { roundLabel, cupClubStatus, playLabel, cupTotalRounds, isKnockout } from '../../league/cup.js';
+import { roundLabel, cupClubStatus, playLabel, cupTotalRounds, isKnockout, compareCompetitions } from '../../league/cup.js';
 
 export function render(app) {
   const w = app.world;
-  const leagues = Object.values(w.leagues).sort((a, b) => a.createdAt - b.createdAt);
+  const leagues = Object.values(w.leagues).sort(compareCompetitions);
   const nClubs = Object.keys(w.clubs).length, nPlayers = Object.keys(w.players).length;
   if (!leagues.length && !nClubs) return onboarding();
   return `<div class="home">

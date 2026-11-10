@@ -300,11 +300,26 @@ async function withCloud(ctx) {
     await page.reload();
     await page.waitForFunction(() => window.ftbl && Object.values(window.ftbl.store.world.leagues).some((l) => l.type === 'cup'), null, { timeout: 15000 });
     w = await world();
-    const ucl = Object.values(w.leagues).find((l) => l.type === 'cup');
-    const top3 = w.leagues[k1.id].history[0].table.slice(0, 3).map((r) => r.clubId);
+    const ucl = Object.values(w.leagues).find((l) => l.type === 'cup' && l.short === 'UCL');
+    const kTable = w.leagues[k1.id].history[0].table.map((r) => r.clubId);
+    const top3 = kTable.slice(0, 3);
     assert.deepEqual(ucl.season.qualifiers, top3);
     assert.equal(ucl.season.clubIds.length, 32);
     assert.equal(w.leagues[k1.id].config.continentalCupId, ucl.id);
+    // Europa League (4th–5th) and Conference League (6th) come with it
+    const uel = Object.values(w.leagues).find((l) => l.short === 'UEL');
+    const uecl = Object.values(w.leagues).find((l) => l.short === 'UECL');
+    assert.deepEqual(uel.season.qualifiers, kTable.slice(3, 5));
+    assert.deepEqual(uecl.season.qualifiers, kTable.slice(5, 6));
+    assert.ok(uel.season.clubIds.length === 32 && uecl.season.clubIds.length === 32);
+    await go(`#/league/${k1.id}/table`);
+    await page.waitForSelector('tr.z-europa');
+    await page.waitForSelector('tr.z-conference');
+    const legendText = await page.textContent('.legend');
+    assert.ok(/Europa League \(4th–5th\)/.test(legendText) && /Conference League \(6th\)/.test(legendText), legendText);
+    await go(`#/league/${uel.id}/groups`);
+    await page.waitForSelector('.group-card');
+    step('Europa League (Kronliga 4th–5th) and Conference League (6th) added; table shows the places');
     await go(`#/league/${ucl.id}/fixtures`);
     await page.click('.sim-bar [data-act=play]');
     await page.waitForSelector('.md-panel');

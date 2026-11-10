@@ -8,7 +8,7 @@ import { liveSimMatch } from '../liveMatch.js';
 import { renderCup, activeWins } from './cup.js';
 import { seasonStepper, pastEntry, stepPast, pastName } from '../pastSeasons.js';
 import { winGameFlow } from '../winGame.js';
-import { setForcedWins } from '../../league/cup.js';
+import { setForcedWins, cupPlaces } from '../../league/cup.js';
 
 const ui = { round: {}, tableMode: 'all', statMode: 'g', teamMode: 'attack' };
 
@@ -112,11 +112,12 @@ function splitTable(l, mode) {
 export function tableHTML(app, l, rows, { compact = false, highlight = null, noForm = false, names = {} } = {}) {
   const w = app.world;
   const n = rows.length;
+  const places = cupPlaces(w, l);
   return `<div class="table-wrap"><table class="ltable ${compact ? 'compact' : ''}">
     <thead><tr><th class="c-pos">#</th><th class="c-club">Club</th><th>P</th>${compact ? '' : '<th>W</th><th>D</th><th>L</th><th class="hide-xs">GF</th><th class="hide-xs">GA</th>'}<th>GD</th><th class="c-pts">Pts</th>${compact || noForm ? '' : '<th class="c-form hide-sm">Form</th>'}</tr></thead>
     <tbody>${rows.map((r) => {
       const c = w.clubs[r.clubId];
-      const z = zoneFor(r.pos, n, l.config);
+      const z = zoneFor(r.pos, n, l.config, places);
       return `<tr class="z-${z} ${highlight === r.clubId ? 'hl' : ''}"><td class="c-pos"><span>${r.pos}</span></td>
         <td class="c-club"><a href="#/club/${r.clubId}">${clubBadge(c, 22)}<span class="full">${esc(c ? c.name : names[r.clubId] || '?')}</span><span class="abbr">${esc(c ? c.short : (names[r.clubId] || '?').slice(0, 3).toUpperCase())}</span></a></td>
         <td>${r.p}</td>${compact ? '' : `<td>${r.w}</td><td>${r.d}</td><td>${r.l}</td><td class="hide-xs">${r.gf}</td><td class="hide-xs">${r.ga}</td>`}
@@ -124,12 +125,17 @@ export function tableHTML(app, l, rows, { compact = false, highlight = null, noF
     }).join('')}</tbody></table></div>`;
 }
 
-function legend(l, legendCup = null) {
+const placeRange = (p) => (p.from === p.to ? `${p.from}${ordinal(p.from)}` : p.from === 1 ? `top ${p.to}` : `${p.from}${ordinal(p.from)}–${p.to}${ordinal(p.to)}`);
+const ordinal = (n) => (n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th');
+
+function legend(app, l) {
   const c = l.config;
   const items = [];
+  const places = c.upperLeagueId ? [] : cupPlaces(app.world, l);
   if (c.championsSpots) items.push(['champion', 'Champions']);
   if (c.upperLeagueId && c.promotionSpots) items.push(['promotion', 'Promotion']);
-  if (!c.upperLeagueId && c.continentalSpots) items.push(['continental', c.continentalCupId && legendCup ? `${legendCup.name} (top ${c.continentalSpots})` : 'Continental places']);
+  for (const p of places) items.push([p.zone, `${esc(p.cup.name)} (${placeRange(p)})`]);
+  if (!places.length && !c.upperLeagueId && c.continentalSpots) items.push(['continental', 'Continental places']);
   if (c.relegationSpots) items.push(['relegation', c.lowerLeagueId ? 'Relegation' : 'Bottom places']);
   return `<div class="legend">${items.map(([z, t]) => `<span><i class="z-dot z-${z}"></i>${t}</span>`).join('')}</div>`;
 }
@@ -138,12 +144,12 @@ function pastTable(app, l, h) {
   const w = app.world;
   const rows = h.table.map((r, i) => ({ ...r, gd: r.gf - r.ga, pos: i + 1, form: [] }));
   const names = (ids) => ids.map((id) => esc(pastName(w, h, id))).join(', ');
-  const cup = app.world.leagues[l.config.continentalCupId];
+  const places = cupPlaces(app.world, l);
   return `${seasonStepper(l)}
-    <div class="card flush">${tableHTML(app, l, rows, { noForm: true, names: h.clubNames })}</div>${legend(l, cup)}
+    <div class="card flush">${tableHTML(app, l, rows, { noForm: true, names: h.clubNames })}</div>${legend(app, l)}
     <div class="card past-notes">
       <p>🏆 <b>Champions:</b> ${esc(pastName(w, h, h.championId))} (${h.table[0].pts} pts)${h.runnerUpId ? ` · runners-up ${esc(pastName(w, h, h.runnerUpId))}` : ''}</p>
-      ${cup && l.config.continentalSpots ? `<p>${ICONS.star} <b>${esc(cup.name)}:</b> ${names(h.table.slice(0, l.config.continentalSpots).map((r) => r.clubId))}</p>` : ''}
+      ${places.map((p) => `<p>${ICONS.star} <b>${esc(p.cup.name)}:</b> ${names(h.table.slice(p.from - 1, p.to).map((r) => r.clubId))}</p>`).join('')}
       ${h.promoted && h.promoted.length ? `<p class="up">↑ <b>Promoted:</b> ${names(h.promoted)}</p>` : ''}
       ${h.relegated && h.relegated.length ? `<p class="down">↓ <b>${l.config.lowerLeagueId ? 'Relegated' : 'Dropped out'}:</b> ${names(h.relegated)}</p>` : ''}
       ${h.newcomers && h.newcomers.length ? `<p class="up">★ <b>Came in:</b> ${names(h.newcomers)}</p>` : ''}
@@ -157,7 +163,7 @@ function tableTab(app, l) {
   if (h) return pastTable(app, l, h);
   const rows = splitTable(l, ui.tableMode);
   return `${seasonStepper(l)}${segmented('tableMode', [['all', 'Overall'], ['home', 'Home'], ['away', 'Away']], ui.tableMode)}
-    <div class="card flush">${tableHTML(app, l, rows)}</div>${legend(l, app.world.leagues[l.config.continentalCupId])}
+    <div class="card flush">${tableHTML(app, l, rows)}</div>${legend(app, l)}
     <p class="hint">Tiebreak: ${l.config.tiebreak === 'h2h' ? 'head-to-head, then goal difference, goals scored' : 'goal difference, goals scored, then head-to-head'}. ${l.config.pointsWin} pts win · ${l.config.pointsDraw} draw.</p>`;
 }
 
@@ -255,12 +261,12 @@ function historyTab(app, l) {
         <summary><span class="hist-season">${esc(h.label)}</span>${clubBadge(champ, 30)}<span class="hist-champ"><b>${esc(name(h, h.championId))}</b><small>${h.table[0].pts} pts · runner-up ${esc(name(h, h.runnerUpId))}</small></span></summary>
         <div class="hist-body">
           ${ts ? `<p>${ICONS.boot} Top scorer: <b>${esc(ts.name)}</b> (${ts.goals}) · ${h.topAssists[0] ? `Assists: <b>${esc(h.topAssists[0].name)}</b> (${h.topAssists[0].assists})` : ''}</p>` : ''}
-          ${l.config.continentalCupId && app.world.leagues[l.config.continentalCupId] ? `<p class="up">${ICONS.star} ${esc(app.world.leagues[l.config.continentalCupId].name)}: ${h.table.slice(0, l.config.continentalSpots).map((r) => esc(name(h, r.clubId))).join(', ')}</p>` : ''}
+          ${cupPlaces(app.world, l).map((p) => `<p class="up">${ICONS.star} ${esc(p.cup.name)}: ${h.table.slice(p.from - 1, p.to).map((r) => esc(name(h, r.clubId))).join(', ')}</p>`).join('')}
           ${h.promoted.length ? `<p class="up">↑ Promoted: ${h.promoted.map((id) => esc(name(h, id))).join(', ')}</p>` : ''}
           ${h.relegated.length ? `<p class="down">↓ ${l.config.lowerLeagueId ? 'Relegated' : 'Dropped out of the league'}: ${h.relegated.map((id) => esc(name(h, id))).join(', ')}</p>` : ''}
           ${h.newcomers && h.newcomers.length ? `<p class="up">★ Came in from the Daffers Cup: ${h.newcomers.map((id) => esc(app.world.clubs[id] ? app.world.clubs[id].name : 'Unknown')).join(', ')}</p>` : ''}
           <table class="ltable compact"><thead><tr><th>#</th><th class="c-club">Club</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GD</th><th>Pts</th></tr></thead><tbody>
-          ${h.table.map((r, i) => `<tr class="z-${zoneFor(i + 1, h.table.length, l.config)}"><td>${i + 1}</td><td class="c-club">${clubBadge(w.clubs[r.clubId], 18)}<span class="full show">${esc(name(h, r.clubId))}</span></td><td>${r.p}</td><td>${r.w}</td><td>${r.d}</td><td>${r.l}</td><td>${r.gf - r.ga}</td><td><b>${r.pts}</b></td></tr>`).join('')}
+          ${h.table.map((r, i) => `<tr class="z-${zoneFor(i + 1, h.table.length, l.config, cupPlaces(app.world, l))}"><td>${i + 1}</td><td class="c-club">${clubBadge(w.clubs[r.clubId], 18)}<span class="full show">${esc(name(h, r.clubId))}</span></td><td>${r.p}</td><td>${r.w}</td><td>${r.d}</td><td>${r.l}</td><td>${r.gf - r.ga}</td><td><b>${r.pts}</b></td></tr>`).join('')}
           </tbody></table>
           <p class="hint">Seed <code>${esc(h.seed)}</code></p>
         </div></details>`;

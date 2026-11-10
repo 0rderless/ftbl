@@ -6,7 +6,7 @@
 import { esc, sheet } from './dom.js';
 import { ICONS, leagueLogo, clubBadge } from './components.js';
 import { playRound, playSeason, currentRound, startNextSeason, pyramidPending, followers } from '../league/season.js';
-import { roundLabel, isCup, startNextCupSeason, searchClubs } from '../league/cup.js';
+import { roundLabel, isCup, startNextCupSeason, searchClubs, compareCompetitions } from '../league/cup.js';
 
 export const SPEEDS = [['slow', 'Slow', 2500], ['normal', 'Normal', 1200], ['fast', 'Fast', 450], ['max', 'Turbo', 120]];
 const SIM_SEASONS = [[1, '1'], [2, '2'], [5, '5'], [10, '10']];
@@ -35,7 +35,7 @@ function prefs(app) {
 }
 
 function choices(w) {
-  return Object.values(w.leagues).sort((a, b) => (a.type === 'cup') - (b.type === 'cup') || (a.format === 'knockout') - (b.format === 'knockout') || a.createdAt - b.createdAt);
+  return Object.values(w.leagues).sort(compareCompetitions);
 }
 
 export async function openAutoPlay(app, startMode) {

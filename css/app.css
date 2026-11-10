@@ -887,3 +887,8 @@ input, textarea, select, [contenteditable="true"] {
 .ap-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; margin: 0 -18px; padding: 0 18px; overscroll-behavior: contain; }
 .ap-scroll .ap-list { max-height: none; }
 .restart-btn { margin-top: 18px; }
+
+/* Europa League / Conference League places */
+.z-europa td:first-child::before { background: #f97316; }
+.z-conference td:first-child::before { background: #2dd4bf; }
+.z-dot.z-europa { background: #f97316; } .z-dot.z-conference { background: #2dd4bf; }

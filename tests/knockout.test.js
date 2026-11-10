@@ -280,6 +280,8 @@ test('Auto rules: "always win" wins everything; a blacklisted team loses but is 
   const { computeTable } = await import('../js/league/table.js');
   const { w, k } = kronliga(20);
   k.config.relegationSpots = 3;
+  const { startSeason } = await import('../js/league/season.js');
+  startSeason(k, 1, 'auto-rules-test'); // fixed seed: the same season every run
   const byRating = k.clubIds.slice().sort((a, b) => w.clubs[b].ratings.overall - w.clubs[a].ratings.overall);
   const best = byRating[0], worst = byRating[byRating.length - 1];
   const rig = { win: [worst], lose: [best] };
@@ -358,4 +360,54 @@ test('Restart game: wipes trophies, tables, records and stats; keeps clubs, play
   startNextSeason(w, k);
   assert.equal(k.season.label, '2027/28'); assert.equal(div.season.label, '2027/28');
   assert.ok(Object.values(w.leagues).filter((l) => !isCup(l)).every((l) => l.clubIds.length === 20));
+});
+
+test('Europa League (Kronliga 4th–5th) and Conference League (6th): real European clubs not in the Champions League', async () => {
+  const { createContinentalCup, createEuropeanCups, cupPlaces, startNextCupSeason, isCup, isKnockout } = await import('../js/league/cup.js');
+  const { zoneFor } = await import('../js/league/table.js');
+  const { restartWorld } = await import('../js/league/restart.js');
+  const { w, k } = kronliga(20);
+  playSeason(w, k, P);
+  const { cup: ucl } = createContinentalCup(w, { qualifiers: [{ leagueId: k.id, spots: 3 }], startYear: 2027 });
+  const uclNames = new Set(ucl.season.clubIds.map((id) => w.clubs[id].name));
+  const [uel, uecl] = createEuropeanCups(w, k, ucl);
+  assert.deepEqual([uel.name, uel.short, uecl.name, uecl.short], ['Europa League', 'UEL', 'Conference League', 'UECL']);
+  assert.deepEqual(createEuropeanCups(w, k, ucl), [], 'only created once');
+  const table = k.history[0].table.map((r) => r.clubId);
+  assert.deepEqual(ucl.season.qualifiers, table.slice(0, 3));
+  assert.deepEqual(uel.season.qualifiers, table.slice(3, 5), 'Kronliga 4th and 5th');
+  assert.deepEqual(uecl.season.qualifiers, table.slice(5, 6), 'Kronliga 6th');
+  for (const c of [uel, uecl]) {
+    assert.equal(c.season.clubIds.length, 32);
+    assert.equal(c.season.label, ucl.season.label, 'same season as the Champions League');
+    assert.equal(c.season.groups.length, 8);
+    for (const id of c.regulars) assert.ok(!uclNames.has(w.clubs[id].name) && w.clubs[id].country !== 'GEK' && !k.clubIds.includes(id), 'real clubs not in the Champions League');
+  }
+  const all = [ucl, uel, uecl].flatMap((c) => c.season.clubIds);
+  assert.equal(new Set(all).size, 96, 'no club in two European cups');
+  assert.ok(uel.regulars.some((id) => w.clubs[id].name === 'Tottenham Hotspur'));
+  assert.ok(uecl.regulars.some((id) => w.clubs[id].name === 'Malmö FF'), 'clubs left out of the Champions League play in Europe too');
+  assert.equal(k.config.continentalCupId, ucl.id, 'Kronliga main link stays the Champions League');
+  assert.equal(k.config.continentalSpots, 3);
+  // table zones
+  const places = cupPlaces(w, k);
+  assert.deepEqual(places.map((p) => [p.cup.short, p.from, p.to, p.zone]), [['UCL', 1, 3, 'continental'], ['UEL', 4, 5, 'europa'], ['UECL', 6, 6, 'conference']]);
+  assert.deepEqual([1, 2, 3, 4, 5, 6, 7, 18].map((pos) => zoneFor(pos, 20, k.config, places)), ['champion', 'continental', 'continental', 'europa', 'europa', 'conference', '', 'relegation']);
+  // they play through and take the next Kronliga table's places
+  startNextSeason(w, k); playSeason(w, k, P);
+  for (const c of [ucl, uel, uecl]) { playSeason(w, c, P); assert.ok(c.season.finished && c.history.length === 1); startNextCupSeason(w, c); }
+  const t2 = k.history[1].table.map((r) => r.clubId);
+  assert.deepEqual([ucl.season.qualifiers, uel.season.qualifiers, uecl.season.qualifiers], [t2.slice(0, 3), t2.slice(3, 5), t2.slice(5, 6)]);
+  // Restart game keeps the places apart too
+  restartWorld(w, 2026);
+  const t3 = t2.filter((id) => k.clubIds.includes(id));
+  assert.deepEqual([ucl.season.qualifiers, uel.season.qualifiers, uecl.season.qualifiers], [t3.slice(0, 3), t3.slice(3, 5), t3.slice(5, 6)]);
+  assert.ok([ucl, uel, uecl].every((c) => c.season.label === '2026/27' && c.season.clubIds.length === 32));
+  // no finished Kronliga season yet: strongest clubs, never the same club in two cups
+  const fresh = kronliga(20);
+  const { cup: u2 } = createContinentalCup(fresh.w, { qualifiers: [{ leagueId: fresh.k.id, spots: 3 }] });
+  const [e2, c2] = createEuropeanCups(fresh.w, fresh.k, u2);
+  const ids = [u2, e2, c2].flatMap((c) => c.season.qualifiers);
+  assert.equal(ids.length, 6); assert.equal(new Set(ids).size, 6);
+  assert.ok(Object.values(fresh.w.leagues).filter((l) => isCup(l) && !isKnockout(l)).every((c) => c.season.clubIds.length === 32));
 });

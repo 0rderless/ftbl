@@ -1,6 +1,6 @@
 // One-time data upgrades that run on the device after the newest data has loaded
 // (so they always apply to the latest copy and never race the cloud).
-import { createContinentalCup, isCup, startCupSeason } from '../league/cup.js';
+import { createContinentalCup, createEuropeanCups, isCup, startCupSeason } from '../league/cup.js';
 import { startSeason, seasonStarted } from '../league/season.js';
 import { addNewKronligaClubs, createDaffersCup, createDivision2, daffersEntries } from '../data/geko.js';
 import { competitionLeaderboard } from '../league/records.js';
@@ -144,6 +144,20 @@ const MIGRATIONS = [
         }
       }
       return { done: true };
+    },
+  },
+  {
+    id: 'europa-conference-v1',
+    // Requested: Europa League for Kronliga 4th–5th and Conference League for 6th, filled with
+    // real European clubs that aren't in the Champions League. Same season as the Champions League.
+    run(world) {
+      const kron = Object.values(world.leagues).find((l) => !isCup(l) && l.name.trim().toLowerCase() === 'kronliga');
+      const ucl = Object.values(world.leagues).find((l) => isCup(l) && !isKnockout(l) && (l.config.qualifiers || []).some((q) => q.leagueId === (kron && kron.id) && (q.from || 1) === 1));
+      if (!kron || !ucl) return null; // try again once there is a Champions League
+      const made = createEuropeanCups(world, kron, ucl);
+      if (!made.length) return { done: true };
+      const q = (c) => (c.season.qualifiers || []).map((id) => world.clubs[id].name).join(', ');
+      return { done: true, message: `${made.map((c) => `${c.name} ${c.season.label} added (${q(c)} from Kronliga)`).join(' · ')}` };
     },
   },
 ];

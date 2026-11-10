@@ -26,16 +26,14 @@ export function restartWorld(world, year = currentSeasonYear()) {
   const cupQualifiers = {};
   for (const cup of leagues.filter((l) => isCup(l) && !isKnockout(l))) {
     const qualifiers = [];
-    for (const { leagueId, spots } of cup.config.qualifiers || []) {
+    for (const { leagueId, spots, from = 1 } of cup.config.qualifiers || []) {
       const l = world.leagues[leagueId];
       if (!l) continue;
       const members = l.clubIds.filter((id) => world.clubs[id]);
       const last = l.history.length ? l.history[l.history.length - 1].table.map((r) => r.clubId) : [];
-      const order = [...last.filter((id) => members.includes(id)), ...members.slice().sort((a, b) => rating(world, b) - rating(world, a))];
-      for (const id of order) {
-        if (qualifiers.filter((q) => members.includes(q)).length >= spots) break;
-        if (!qualifiers.includes(id)) qualifiers.push(id);
-      }
+      // the same order for every cup, so e.g. UCL gets 1st–3rd, Europa League 4th–5th, Conference League 6th
+      const order = [...new Set([...last.filter((id) => members.includes(id)), ...members.slice().sort((a, b) => rating(world, b) - rating(world, a))])];
+      for (const id of order.slice(from - 1, from - 1 + spots)) if (!qualifiers.includes(id)) qualifiers.push(id);
     }
     cupQualifiers[cup.id] = qualifiers;
   }

@@ -2,11 +2,12 @@
 import { esc } from '../dom.js';
 import { header, clubBadge, leagueLogo, segmented, emptyState } from '../components.js';
 import { competitionLeaderboard, countryLeaderboard } from '../../league/records.js';
+import { compareCompetitions } from '../../league/cup.js';
 
 const ui = { comp: null, sort: 'titles' };
 
 export function competitions(w) {
-  return Object.values(w.leagues).sort((a, b) => (a.type === 'cup') - (b.type === 'cup') || (a.format === 'knockout') - (b.format === 'knockout') || a.createdAt - b.createdAt);
+  return Object.values(w.leagues).sort(compareCompetitions);
 }
 
 export function render(app, compId) {
@@ -55,13 +56,15 @@ function gekoView(app, comps, chips) {
   const top = rows[0];
   const podium = rows.slice(0, 3);
   const order = podium.length === 3 ? [podium[1], podium[0], podium[2]] : podium;
-  const cols = comps;
-  const grid = `grid-template-columns: 28px 1fr ${cols.map(() => '34px').join(' ')} 40px`;
+  // only competitions a Geko club has won (new cups get a column once someone wins them)
+  const cols = comps.filter((l) => rows.some((r) => r.by[l.id]));
+  const tight = cols.length > 4;
+  const grid = tight ? `grid-template-columns: 22px 1fr ${cols.map(() => '24px').join(' ')} 34px; gap: 3px; padding: 9px 10px` : `grid-template-columns: 28px 1fr ${cols.map(() => '34px').join(' ')} 40px`;
   const breakdown = (r) => cols.filter((l) => r.by[l.id]).map((l) => `${r.by[l.id]} ${l.short}`).join(' · ');
   return `${header({ title: 'Biggest clubs', sub: 'Geko · all trophies, all competitions', back: '#/' })}
   ${chips}
   <div class="pad">
-    ${!rows.length ? emptyState('No trophies yet', 'Win Kronliga, the Daffers Cup or the Champions League.') : `
+    ${!rows.length ? emptyState('No trophies yet', 'Win Kronliga, the Daffers Cup or a European cup.') : `
     ${top && top.total > 0 ? `<a class="card biggest-hero" href="#/club/${top.clubId}/honours" style="--c1:${w.clubs[top.clubId].colors.primary}">
       <small>🦎 Biggest club in Geko</small>
       <div class="bh-badge">${clubBadge(w.clubs[top.clubId], 92)}<span class="bh-crown">👑</span></div>
@@ -71,12 +74,12 @@ function gekoView(app, comps, chips) {
     </a>` : ''}
     ${podium.length === 3 && podium[2].total > 0 ? `<div class="podium">${order.map((r) => { const place = rows.indexOf(r) + 1; return `<a class="pod pod-${place}" href="#/club/${r.clubId}/honours">${clubBadge(w.clubs[r.clubId], place === 1 ? 54 : 44)}<b>${esc(r.name)}</b><span>${r.total}</span><small class="pod-split">${esc(breakdown(r))}</small><i>${place}</i></a>`; }).join('')}</div>` : ''}
     <div class="card flush">
-      <div class="lb-head" style="${grid}"><span>#</span><span>Club</span>${cols.map((l) => `<span class="lb-logo" title="${esc(l.name)}">${leagueLogo(l, 20)}</span>`).join('')}<span>Total</span></div>
+      <div class="lb-head" style="${grid}"><span>#</span><span>Club</span>${cols.map((l) => `<span class="lb-logo" title="${esc(l.name)}">${leagueLogo(l, tight ? 18 : 20)}</span>`).join('')}<span>${tight ? 'All' : 'Total'}</span></div>
       ${rows.map((r, i) => `<a class="lb-row ${i < 3 ? 'top' : ''}" style="${grid}" href="#/club/${r.clubId}/honours"><span class="lb-rank">${i + 1}</span>
         <span class="lb-club">${clubBadge(w.clubs[r.clubId], 24)}<span>${esc(r.name)}</span></span>
         ${cols.map((l) => `<span class="${r.by[l.id] ? '' : 'zero'}">${r.by[l.id] || 0}</span>`).join('')}<b class="hl">${r.total}</b></a>`).join('')}
     </div>
-    <p class="hint">Every trophy won by Geko clubs: ${cols.map((l) => esc(l.name)).join(', ')}. Foreign Champions League clubs aren't included.</p>`}
+    <p class="hint">Every trophy won by Geko clubs in every competition (${comps.map((l) => esc(l.short || l.name)).join(', ')}). Foreign clubs from the European cups aren't included.</p>`}
   </div>`;
 }
 

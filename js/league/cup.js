@@ -7,7 +7,7 @@ import { generateFixtures } from './fixtures.js';
 import { computeTable } from './table.js';
 import { playerStats, topList } from './season.js';
 import { newLeague, seasonLabel } from '../data/model.js';
-import { addContinentalClubs } from '../data/continental.js';
+import { addContinentalClubs, CONTINENTAL_CLUBS, EUROPA_CLUBS, CONFERENCE_CLUBS } from '../data/continental.js';
 import { LEAGUE_LOGO_PRESETS } from '../ui/badge.js';
 import { playExtraTime, playPenalties } from '../engine/match.js';
 import { startKnockoutSeason, advanceKnockout, knockoutStatus, koRoundName, koShortName } from './knockout.js';
@@ -83,14 +83,27 @@ export function cupEntrants(world, cup, override = null, forLabel = null) {
   const qualifiers = override ? override.qualifiers.filter((id) => world.clubs[id]) : [];
   const qualifiedFrom = override ? { ...override.qualifiedFrom } : {};
   const reserves = [];
-  for (const { leagueId, spots } of override ? [] : cup.config.qualifiers || []) {
+  for (const { leagueId, spots, from = 1 } of override ? [] : cup.config.qualifiers || []) {
     const l = world.leagues[leagueId];
+    if (!l) continue;
     const h = qualifyingTable(l, forLabel);
-    if (!h) continue;
-    qualifiedFrom[leagueId] = h.label;
-    const order = h.table.map((r) => r.clubId).filter((id) => world.clubs[id]);
-    qualifiers.push(...order.slice(0, spots).filter((id) => !qualifiers.includes(id)));
-    reserves.push(...order.slice(spots));
+    // clubs already in another European cup this season (a club never plays in two)
+    const taken = new Set(Object.values(world.leagues).filter((x) => x.id !== cup.id && isCup(x) && !isKnockout(x) && x.season && x.season.label === forLabel).flatMap((x) => x.season.clubIds));
+    let order, start = from - 1;
+    if (h) {
+      qualifiedFrom[leagueId] = h.label;
+      // the clubs from this place down; if one is already in a bigger cup, the next club takes its place
+      order = h.table.map((r) => r.clubId).filter((id) => world.clubs[id]).filter((id, i) => i >= start && !taken.has(id));
+      start = 0;
+    } else {
+      // no finished season yet: strongest clubs first, after those already in another cup
+      // (e.g. the Europa League takes the next best after the Champions League)
+      const all = l.clubIds.filter((id) => world.clubs[id]).sort((a, b) => rating(world, b) - rating(world, a));
+      order = all.filter((id) => !taken.has(id));
+      start = Math.max(0, start - all.filter((id) => taken.has(id)).length);
+    }
+    qualifiers.push(...order.slice(start, start + spots).filter((id) => !qualifiers.includes(id)));
+    reserves.push(...order.slice(start + spots));
   }
   const regulars = (cup.regulars || []).filter((id) => world.clubs[id] && !qualifiers.includes(id))
     .sort((a, b) => rating(world, b) - rating(world, a));
@@ -311,9 +324,16 @@ export function startNextCupSeason(world, cup) {
  * Create a Champions League-style cup fed by league qualifiers. A full continental
  * field is generated and its weakest clubs are dropped to make room for the qualifiers.
  */
-export function createContinentalCup(world, { name = 'Champions League', short = 'UCL', qualifiers = [], size = 32, startYear, seed = 'ucl' } = {}) {
+export const CUP_LOGOS = {
+  ucl: { shape: 'circle', pattern: 'rays', emblem: 'stars3', c1: '#0b1a4a', c2: '#13245e', c3: '#ffffff', trim: '#e2e8f0' },
+  uel: { shape: 'circle', pattern: 'rays', emblem: 'trophy', c1: '#1c1917', c2: '#c2410c', c3: '#ffffff', trim: '#fb923c' },
+  uecl: { shape: 'circle', pattern: 'rays', emblem: 'star', c1: '#052e16', c2: '#15803d', c3: '#ffffff', trim: '#4ade80' },
+};
+
+export function createContinentalCup(world, { name = 'Champions League', short = 'UCL', qualifiers = [], size = 32, startYear, seed = 'ucl', clubs = CONTINENTAL_CLUBS, logo = CUP_LOGOS.ucl, override = null } = {}) {
   const nQ = qualifiers.reduce((t, q) => t + q.spots, 0);
-  const ids = addContinentalClubs(world, 32, seed);
+  const own = clubs !== CONTINENTAL_CLUBS;
+  const ids = addContinentalClubs(world, own ? clubs.length : 32, seed, clubs, { skipExisting: own });
   const sorted = ids.slice().sort((a, b) => rating(world, b) - rating(world, a));
   const regulars = sorted.slice(0, Math.max(0, size - nQ));
   const dropped = sorted.slice(regulars.length).map((id) => world.clubs[id].name);
@@ -323,7 +343,7 @@ export function createContinentalCup(world, { name = 'Champions League', short =
   }
   const cup = newLeague({
     name, short,
-    logo: { ...LEAGUE_LOGO_PRESETS[2].spec, shape: 'circle', pattern: 'rays', emblem: 'stars3', c1: '#0b1a4a', c2: '#13245e', c3: '#ffffff', trim: '#e2e8f0' },
+    logo: { ...LEAGUE_LOGO_PRESETS[2].spec, ...logo },
     config: { tiebreak: 'h2h', championsSpots: 1, continentalSpots: 0, relegationSpots: 0, legs: 2, startYear: startYear || 2026 },
   });
   cup.type = 'cup';
@@ -333,10 +353,58 @@ export function createContinentalCup(world, { name = 'Champions League', short =
   world.leagues[cup.id] = cup;
   for (const q of qualifiers) {
     const l = world.leagues[q.leagueId];
-    if (l) { l.config.continentalSpots = q.spots; l.config.continentalCupId = cup.id; }
+    // the league's main continental link is the cup its top places go to
+    if (l && (q.from || 1) === 1) { l.config.continentalSpots = q.spots; l.config.continentalCupId = cup.id; }
   }
-  startCupSeason(world, cup, 1);
+  startCupSeason(world, cup, 1, undefined, override);
   return { cup, dropped };
+}
+
+/**
+ * Europa League (places 4–5) and Conference League (place 6) for a league that already feeds a
+ * Champions League. Their fields are real European clubs outside the Champions League. They run
+ * the same season as the Champions League. Returns the cups created (none if they already exist).
+ */
+export function createEuropeanCups(world, league, ucl) {
+  const made = [];
+  // same season label as the Champions League (cups are labelled one season after the table they qualify from)
+  const startYear = ucl ? ucl.config.startYear + ((ucl.season && ucl.season.number) || 1) - 1 : league.config.startYear;
+  const has = (short) => Object.values(world.leagues).some((l) => isCup(l) && !isKnockout(l) && l.short === short);
+  if (!has('UEL')) {
+    made.push(createContinentalCup(world, { name: 'Europa League', short: 'UEL', qualifiers: [{ leagueId: league.id, spots: 2, from: 4 }], startYear, seed: 'uel-' + league.id, clubs: EUROPA_CLUBS, logo: CUP_LOGOS.uel }).cup);
+  }
+  if (!has('UECL')) {
+    made.push(createContinentalCup(world, { name: 'Conference League', short: 'UECL', qualifiers: [{ leagueId: league.id, spots: 1, from: 6 }], startYear, seed: 'uecl-' + league.id, clubs: CONFERENCE_CLUBS, logo: CUP_LOGOS.uecl }).cup);
+  }
+  return made;
+}
+
+/** Sort order for lists of competitions: leagues, then European cups, then knockout cups. */
+export function compareCompetitions(a, b) {
+  const rank = (l) => (!isCup(l) ? 0 : isKnockout(l) ? 2 : 1);
+  return rank(a) - rank(b) || a.createdAt - b.createdAt;
+}
+
+const PLACE_ZONES = ['continental', 'europa', 'conference'];
+
+/**
+ * The European places a league's final table gives, best cup first:
+ * e.g. [{ cup: UCL, from: 1, to: 3, zone: 'continental' }, { cup: UEL, from: 4, to: 5, zone: 'europa' }, …].
+ */
+export function cupPlaces(world, league) {
+  if (!league || isCup(league)) return [];
+  const out = [];
+  for (const cup of Object.values(world.leagues)) {
+    if (!isCup(cup) || isKnockout(cup)) continue;
+    for (const q of cup.config.qualifiers || []) {
+      if (q.leagueId !== league.id) continue;
+      const from = q.from || 1;
+      out.push({ cup, from, to: from + q.spots - 1 });
+    }
+  }
+  out.sort((a, b) => a.from - b.from);
+  out.forEach((p, i) => { p.zone = PLACE_ZONES[Math.min(i, PLACE_ZONES.length - 1)]; });
+  return out;
 }
 
 /** Short status of a club in the current cup season, e.g. "Group B · 2nd", "In QF", "Out (R16)", "Winners". */

@@ -42,6 +42,75 @@ export const CONTINENTAL_CLUBS = [
   ['Sparta Prague', 'SPA', 'CZE', 72, '#991b1b', '#ffffff', 'Letná Stadium', 18944, 1893, 'shield', 'solid', 'star'],
 ];
 
+// Real European clubs outside the Champions League field, for the Europa League and Conference League.
+// Same columns as above. Ratings are approximate; badges are original designs in club colours.
+export const EUROPA_CLUBS = [
+  ['Napoli', 'NAP', 'ITA', 83, '#38bdf8', '#ffffff', 'Stadio Diego Armando Maradona', 54726, 1926, 'circle', 'solid', 'monogram'],
+  ['Atalanta', 'ATA', 'ITA', 82, '#1e3a8a', '#111827', 'Gewiss Stadium', 24950, 1907, 'shield', 'stripes', 'monogram'],
+  ['Tottenham Hotspur', 'TOT', 'ENG', 82, '#ffffff', '#0f172a', 'Tottenham Hotspur Stadium', 62850, 1882, 'shield', 'solid', 'bird'],
+  ['Manchester United', 'MUN', 'ENG', 81, '#dc2626', '#facc15', 'Old Trafford', 74310, 1878, 'circle', 'solid', 'trident'],
+  ['Aston Villa', 'AVL', 'ENG', 81, '#7f1d1d', '#7dd3fc', 'Villa Park', 42640, 1874, 'shield', 'solid', 'crown'],
+  ['Newcastle United', 'NEW', 'ENG', 81, '#111827', '#ffffff', 'St James\' Park', 52305, 1892, 'circle', 'stripes', 'castle'],
+  ['RB Leipzig', 'RBL', 'GER', 81, '#ffffff', '#dc2626', 'Red Bull Arena', 47069, 2009, 'circle', 'solid', 'bull'],
+  ['Roma', 'ROM', 'ITA', 80, '#991b1b', '#f59e0b', 'Stadio Olimpico', 70634, 1927, 'heater', 'solid', 'wolf'],
+  ['Athletic Club', 'ATH', 'ESP', 80, '#dc2626', '#ffffff', 'San Mamés', 53289, 1898, 'shield', 'stripes', 'tree'],
+  ['Lazio', 'LAZ', 'ITA', 79, '#7dd3fc', '#ffffff', 'Stadio Olimpico', 70634, 1900, 'shield', 'solid', 'eagle'],
+  ['Real Sociedad', 'RSO', 'ESP', 79, '#1d4ed8', '#ffffff', 'Anoeta', 39500, 1909, 'circle', 'stripes', 'crown'],
+  ['Villarreal', 'VIL', 'ESP', 79, '#facc15', '#1e3a8a', 'Estadio de la Cerámica', 23500, 1923, 'oval', 'solid', 'sun'],
+  ['Marseille', 'OM', 'FRA', 79, '#ffffff', '#0ea5e9', 'Stade Vélodrome', 67394, 1899, 'shield', 'solid', 'star'],
+  ['Lille', 'LIL', 'FRA', 79, '#dc2626', '#1e3a8a', 'Stade Pierre-Mauroy', 50186, 1944, 'circle', 'solid', 'bird'],
+  ['Eintracht Frankfurt', 'SGE', 'GER', 79, '#111827', '#dc2626', 'Deutsche Bank Park', 58000, 1899, 'circle', 'solid', 'eagle'],
+  ['Ajax', 'AJA', 'NED', 79, '#ffffff', '#dc2626', 'Johan Cruijff ArenA', 55865, 1900, 'oval', 'centre', 'monogram'],
+  ['Real Betis', 'BET', 'ESP', 78, '#16a34a', '#ffffff', 'Estadio Benito Villamarín', 60721, 1907, 'shield', 'stripes', 'monogram'],
+  ['Lyon', 'OL', 'FRA', 78, '#ffffff', '#1e3a8a', 'Groupama Stadium', 59186, 1950, 'circle', 'bend', 'wolf'],
+  ['Fenerbahçe', 'FB', 'TUR', 78, '#facc15', '#1e3a8a', 'Şükrü Saracoğlu Stadium', 47834, 1907, 'circle', 'stripes', 'monogram'],
+  ['VfB Stuttgart', 'VFB', 'GER', 78, '#ffffff', '#dc2626', 'MHPArena', 60449, 1893, 'shield', 'band', 'gem'],
+  ['West Ham United', 'WHU', 'ENG', 78, '#7f1d1d', '#7dd3fc', 'London Stadium', 62500, 1895, 'shield', 'solid', 'hammers'],
+  ['Sevilla', 'SEV', 'ESP', 77, '#ffffff', '#dc2626', 'Ramón Sánchez-Pizjuán', 43883, 1890, 'heater', 'halves', 'monogram'],
+  ['Fiorentina', 'FIO', 'ITA', 77, '#7c3aed', '#ffffff', 'Stadio Artemio Franchi', 43147, 1926, 'pointed', 'solid', 'clover'],
+  ['Beşiktaş', 'BJK', 'TUR', 76, '#111827', '#ffffff', 'Tüpraş Stadium', 42590, 1903, 'circle', 'halves', 'star'],
+  ['SC Braga', 'SCB', 'POR', 76, '#dc2626', '#ffffff', 'Estádio Municipal de Braga', 30286, 1921, 'shield', 'solid', 'castle'],
+  ['Rangers', 'RAN', 'SCO', 75, '#1d4ed8', '#ffffff', 'Ibrox Stadium', 50817, 1872, 'circle', 'solid', 'monogram'],
+  ['AZ Alkmaar', 'AZ', 'NED', 75, '#dc2626', '#ffffff', 'AFAS Stadion', 19478, 1967, 'square', 'solid', 'monogram'],
+  ['Anderlecht', 'AND', 'BEL', 74, '#7c3aed', '#ffffff', 'Lotto Park', 21500, 1908, 'oval', 'solid', 'crown'],
+  ['PAOK', 'PAOK', 'GRE', 74, '#111827', '#ffffff', 'Toumba Stadium', 28703, 1926, 'circle', 'stripes', 'eagle'],
+  ['Young Boys', 'YB', 'SUI', 73, '#facc15', '#111827', 'Stadion Wankdorf', 31783, 1898, 'circle', 'solid', 'monogram'],
+];
+
+export const CONFERENCE_CLUBS = [
+  ['Brighton & Hove Albion', 'BHA', 'ENG', 77, '#1d4ed8', '#ffffff', 'Amex Stadium', 31876, 1901, 'circle', 'stripes', 'bird'],
+  ['Crystal Palace', 'CRY', 'ENG', 76, '#1d4ed8', '#dc2626', 'Selhurst Park', 25486, 1905, 'shield', 'halves', 'eagle'],
+  ['Nottingham Forest', 'NFO', 'ENG', 76, '#dc2626', '#ffffff', 'City Ground', 30404, 1865, 'shield', 'solid', 'tree'],
+  ['Bologna', 'BOL', 'ITA', 76, '#991b1b', '#1e3a8a', 'Stadio Renato Dall\'Ara', 36462, 1909, 'shield', 'halves', 'monogram'],
+  ['SC Freiburg', 'SCF', 'GER', 76, '#dc2626', '#111827', 'Europa-Park Stadion', 34700, 1904, 'octagon', 'solid', 'mountain'],
+  ['Nice', 'NIC', 'FRA', 76, '#dc2626', '#111827', 'Allianz Riviera', 36178, 1904, 'shield', 'stripes', 'eagle'],
+  ['Borussia Mönchengladbach', 'BMG', 'GER', 75, '#ffffff', '#16a34a', 'Borussia-Park', 54042, 1900, 'diamond', 'solid', 'monogram'],
+  ['Rennes', 'REN', 'FRA', 75, '#dc2626', '#111827', 'Roazhon Park', 29778, 1901, 'heater', 'halves', 'monogram'],
+  ['Lens', 'RCL', 'FRA', 75, '#facc15', '#dc2626', 'Stade Bollaert-Delelis', 38223, 1906, 'shield', 'halves', 'flame'],
+  ['Celta Vigo', 'CEV', 'ESP', 74, '#7dd3fc', '#ffffff', 'Balaídos', 24870, 1923, 'pointed', 'cross', 'monogram'],
+  ['Torino', 'TOR', 'ITA', 74, '#7f1d1d', '#ffffff', 'Stadio Olimpico Grande Torino', 27958, 1906, 'oval', 'solid', 'bull'],
+  ['Union Saint-Gilloise', 'USG', 'BEL', 74, '#facc15', '#1e3a8a', 'Stade Joseph Marien', 9400, 1897, 'shield', 'solid', 'monogram'],
+  ['Slavia Prague', 'SLA', 'CZE', 74, '#dc2626', '#ffffff', 'Fortuna Arena', 19370, 1892, 'circle', 'halves', 'star'],
+  ['FC Twente', 'TWE', 'NED', 73, '#dc2626', '#ffffff', 'De Grolsch Veste', 30205, 1965, 'shield', 'solid', 'monogram'],
+  ['Trabzonspor', 'TS', 'TUR', 73, '#7f1d1d', '#7dd3fc', 'Papara Park', 40782, 1967, 'circle', 'stripes', 'wave'],
+  ['AEK Athens', 'AEK', 'GRE', 73, '#facc15', '#111827', 'OPAP Arena', 32500, 1924, 'shield', 'solid', 'eagle'],
+  ['Panathinaikos', 'PAO', 'GRE', 73, '#16a34a', '#ffffff', 'Apostolos Nikolaidis Stadium', 16003, 1908, 'circle', 'solid', 'clover'],
+  ['Bodø/Glimt', 'BOD', 'NOR', 73, '#facc15', '#111827', 'Aspmyra Stadion', 8270, 1916, 'shield', 'solid', 'sun'],
+  ['Malmö FF', 'MFF', 'SWE', 73, '#7dd3fc', '#ffffff', 'Eleda Stadion', 22500, 1910, 'circle', 'solid', 'monogram'],
+  ['Sparta Prague', 'SPA', 'CZE', 72, '#991b1b', '#ffffff', 'Letná Stadium', 18944, 1893, 'shield', 'solid', 'star'],
+  ['FC Basel', 'BAS', 'SUI', 72, '#dc2626', '#1e3a8a', 'St. Jakob-Park', 38512, 1893, 'shield', 'halves', 'monogram'],
+  ['Ferencváros', 'FTC', 'HUN', 72, '#16a34a', '#ffffff', 'Groupama Aréna', 22000, 1899, 'circle', 'stripes', 'eagle'],
+  ['Vitória de Guimarães', 'VSC', 'POR', 72, '#ffffff', '#111827', 'Estádio D. Afonso Henriques', 30000, 1922, 'heater', 'solid', 'castle'],
+  ['Legia Warsaw', 'LEG', 'POL', 71, '#16a34a', '#dc2626', 'Stadion Legii', 31103, 1916, 'shield', 'band', 'monogram'],
+  ['Rapid Wien', 'RAP', 'AUT', 71, '#16a34a', '#ffffff', 'Allianz Stadion', 28345, 1899, 'circle', 'halves', 'monogram'],
+  ['Partizan', 'PAR', 'SRB', 71, '#111827', '#ffffff', 'Partizan Stadium', 29775, 1945, 'shield', 'stripes', 'star'],
+  ['Brøndby', 'BIF', 'DEN', 70, '#facc15', '#1e3a8a', 'Brøndby Stadium', 28100, 1964, 'circle', 'solid', 'monogram'],
+  ['Hajduk Split', 'HAJ', 'CRO', 70, '#ffffff', '#1e3a8a', 'Poljud', 33987, 1911, 'circle', 'checks', 'monogram'],
+  ['Lech Poznań', 'LPO', 'POL', 70, '#1e40af', '#ffffff', 'Stadion Poznań', 42837, 1922, 'shield', 'solid', 'monogram'],
+  ['Maccabi Tel Aviv', 'MTA', 'ISR', 70, '#facc15', '#1e3a8a', 'Bloomfield Stadium', 29400, 1906, 'circle', 'solid', 'star'],
+  ['Aberdeen', 'ABE', 'SCO', 69, '#dc2626', '#ffffff', 'Pittodrie Stadium', 20866, 1903, 'shield', 'solid', 'castle'],
+];
+
 // The fictional clubs used by the first version (renamed to real clubs by a one-time upgrade).
 export const OLD_FICTIONAL = ['Real Montaver', 'FC Steinhafen', 'AC Verantina', 'Inter Lucavo', 'Olympique Marvelle', 'Atlético Castelbruna',
   'Fortuna Eisenwald', 'Sporting Alvarim', 'Ruyterstad', 'Virtus Calmara', 'Sporting Aldoria', 'Stade Rocheval', 'SV Brennholm',
@@ -72,14 +141,17 @@ function kits(rng, p, s) {
 }
 
 /** Create continental clubs (with squads) in the world. Returns their ids, strongest first. */
-export function addContinentalClubs(world, count = 32, seed = 'continental') {
+export function addContinentalClubs(world, count = 32, seed = 'continental', list = CONTINENTAL_CLUBS, { skipExisting = false } = {}) {
   const rng = new RNG(seed);
   const taken = new Set(Object.values(world.clubs).map((c) => c.name.toLowerCase()));
   const ids = [];
-  CONTINENTAL_CLUBS.slice(0, count).forEach((entry) => {
+  list.slice(0, count).forEach((entry) => {
     const [name, short, country, rating, p, s2, stadium, capacity, founded, , pattern] = entry;
     let nm = name;
-    if (taken.has(nm.toLowerCase())) nm += ' (UCL)';
+    if (taken.has(nm.toLowerCase())) {
+      if (skipExisting) return; // already in the world (e.g. added by hand)
+      nm += ' (UCL)';
+    }
     const j = () => Math.round(rating + rng.normal(0, 2));
     const k = kits(rng, p, s2);
     k.home.style = KIT_OF[pattern] || 'plain';

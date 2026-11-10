@@ -237,8 +237,9 @@ export function updateCup(world, id, data = {}) {
   if (Array.isArray(data.qualifiers)) {
     for (const x of Object.values(world.leagues)) if (x.config.continentalCupId === id) x.config.continentalCupId = null;
     cup.config.qualifiers = data.qualifiers.filter((q) => world.leagues[q.leagueId] && !isCup(world.leagues[q.leagueId]))
-      .map((q) => ({ leagueId: q.leagueId, spots: Math.max(1, Math.min(8, Math.round(Number(q.spots) || 1))) }));
+      .map((q) => ({ leagueId: q.leagueId, spots: Math.max(1, Math.min(8, Math.round(Number(q.spots) || 1))), ...(q.from > 1 ? { from: Math.min(30, Math.round(Number(q.from))) } : {}) }));
     for (const q of cup.config.qualifiers) {
+      if (q.from > 1) continue; // lower places (e.g. Europa League) don't change the league's main link
       world.leagues[q.leagueId].config.continentalCupId = id;
       world.leagues[q.leagueId].config.continentalSpots = q.spots;
     }

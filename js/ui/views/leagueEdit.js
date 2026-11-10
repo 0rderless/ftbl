@@ -148,8 +148,9 @@ function cupEditor(app, l) {
     <section class="card"><h3 class="card-title">Logo</h3>${designerHTML(draft.logo, ctx, LEAGUE_LOGO_PRESETS.concat(BADGE_LIKE))}</section>
     <section class="card"><h3 class="card-title">Qualification</h3>
       <label class="field"><span>Qualifying league</span><select data-field="q.leagueId"><option value="">None</option>${leagues.map((x) => `<option value="${x.id}" ${q.leagueId === x.id ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></label>
-      <label class="field"><span>Places (top of the final table)</span><input type="number" min="1" max="8" data-field="q.spots" value="${esc(q.spots)}"></label>
-      <p class="hint">At the end of each league season, its top ${esc(q.spots)} go into the next ${esc(draft.name)}. Changes apply from the next draw.</p>
+      <div class="row gap"><label class="field"><span>From place</span><input type="number" min="1" max="20" data-field="q.from" value="${esc(q.from || 1)}"></label>
+      <label class="field"><span>Number of places</span><input type="number" min="1" max="8" data-field="q.spots" value="${esc(q.spots)}"></label></div>
+      <p class="hint">At the end of each league season, ${(Number(q.from) || 1) > 1 ? `places ${esc(q.from)}–${esc((Number(q.from) || 1) + (Number(q.spots) || 1) - 1)}` : `its top ${esc(q.spots)}`} go into the next ${esc(draft.name)}. Changes apply from the next draw.</p>
     </section>
     <section class="card"><h3 class="card-title">Continental clubs <span class="count">${draft.clubIds.length} selected · ${need} needed</span></h3>
       <p class="hint">The strongest ${need} selected clubs fill the rest of the field each season.${qualifierIds.size ? ' League qualifiers are added automatically.' : ''}</p>
@@ -186,7 +187,7 @@ export const actions = {
     }
     if (draft.type === 'cup') {
       const q = draft.qualifier;
-      const ok = app.act((w) => { updateCup(w, id, { name: draft.name, short: draft.short, logo: draft.logo, regulars: draft.clubIds, qualifiers: q.leagueId ? [{ leagueId: q.leagueId, spots: q.spots }] : [] }); return true; }, 'Competition saved');
+      const ok = app.act((w) => { updateCup(w, id, { name: draft.name, short: draft.short, logo: draft.logo, regulars: draft.clubIds, qualifiers: q.leagueId ? [{ leagueId: q.leagueId, spots: q.spots, from: Number(q.from) || 1 }] : [] }); return true; }, 'Competition saved');
       if (ok) { draft = null; draftKey = null; app.nav(`#/league/${id}`, { replace: true }); }
       return;
     }
@@ -239,8 +240,8 @@ export function onChange(app, el) {
   }
   if (applyDesignerInput(draft.logo, el)) { app.render(); return; }
   const f = el.dataset.field;
-  if (f === 'q.leagueId' || f === 'q.spots') {
-    draft.qualifier[f.slice(2)] = f === 'q.spots' ? Number(el.value) : el.value;
+  if (f === 'q.leagueId' || f === 'q.spots' || f === 'q.from') {
+    draft.qualifier[f.slice(2)] = f === 'q.leagueId' ? el.value : Number(el.value);
     app.render(); return;
   }
   if (f && f.startsWith('cfg.')) {

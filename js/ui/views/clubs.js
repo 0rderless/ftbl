@@ -1,11 +1,12 @@
 import { esc } from '../dom.js';
 import { ICONS, header, clubBadge, ratingChip, emptyState, segmented, leagueLogo } from '../components.js';
 import { entryGroups } from '../../league/knockout.js';
+import { compareCompetitions } from '../../league/cup.js';
 
 const ui = { q: '', sort: 'name', group: null };
 
 function groupsOf(w) {
-  const leagues = Object.values(w.leagues).sort((a, b) => (a.type === 'cup') - (b.type === 'cup') || a.createdAt - b.createdAt);
+  const leagues = Object.values(w.leagues).sort(compareCompetitions);
   const groups = leagues.map((l) => ({ id: l.id, name: l.name, short: l.short, league: l, ids: (l.season ? l.season.clubIds : l.clubIds).filter((id) => w.clubs[id]) }));
   const inAny = new Set(groups.flatMap((g) => g.ids));
   const other = Object.keys(w.clubs).filter((id) => !inAny.has(id));

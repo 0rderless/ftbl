@@ -2,13 +2,13 @@ import { esc } from '../dom.js';
 import { ICONS, header, leagueLogo, clubBadge, emptyState } from '../components.js';
 import { currentRound, totalRounds } from '../../league/season.js';
 import { computeTable } from '../../league/table.js';
-import { roundLabel } from '../../league/cup.js';
+import { roundLabel, compareCompetitions } from '../../league/cup.js';
 import { openAutoPlay, isAutoRunning, autoMode } from '../autoPlay.js';
 import { restartGameFlow } from '../restartGame.js';
 
 export function render(app) {
   const w = app.world;
-  const leagues = Object.values(w.leagues).sort((a, b) => a.createdAt - b.createdAt);
+  const leagues = Object.values(w.leagues).sort(compareCompetitions);
   const body = leagues.length ? leagues.map((l) => {
     const s = l.season;
     const t = s && l.type !== 'cup' ? computeTable(s.clubIds, s.fixtures, l.config) : [];
